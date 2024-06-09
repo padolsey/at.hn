@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "npx nodemon --watch ./ --exec \"node server.mjs\"",
-    "run": "node server.mjs"
+    "start": "node server.mjs"
   },
   "dependencies": {
     "express": "^4.19.2",
