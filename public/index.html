@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<!--made by @padolsey // j11y.io-->
+<head><title>at.hn</title></head>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    padding: 1em;
+    font-size: 10pt;
+    font-family: Verdana, Geneva, sans-serif;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  #c {
+    background: #f6f6ef;
+    width: 80%;
+    margin: 0 auto;
+    padding: 1em;
+  }
+  header h1 {
+    margin: 0;
+    padding: 0 0 .3em;
+  }
+  header p {
+    margin: 0;
+    padding: 0;
+  }
+  header span {
+    color: #828282;
+  }
+  header a {
+    pointer-events: none;
+    color: #828282;
+    text-decoration: underline;
+  }
+  img {
+    width: 97%;
+    max-width: 700px;
+    display: block;
+    margin: 0 auto;
+  }
+  @media only screen and (max-width: 750px) {
+    #c {
+      width: 100%;
+    }
+  }
+</style>
+<body>
+  <div id="c">
+    <header>
+      <h1>{you?}<span>.at.hn</span></h1>
+      <p>
+        <small>
+          <span>karma:</span> 99999999
+        </small>
+        |
+        <small>
+          <span><a>profile</a></span>
+        </small>
+        |
+        <small>
+          <span><a>submissions</a></span>
+        </small>
+        |
+        <small>
+          <span><a>comments</a></span>
+        </small>
+      </p>
+    </header>
+    <div>
+      <p>This is a richer way to display your <a href="https://news.ycombinator.com">hacker news</a> bio. To use it:
+      </p>
+      <ol>
+        <li>Paste <code>"{your username}.at.hn"</code> somewhere into your profile's 'about' section on HN.</li>
+        <li>Go to <code>https://{username}.at.hn</code> and you should see things. Add <code>"?refresh"</code> to the query to force a refresh.</li>
+        <li>Use markdown to make things prettier. Submit PRs on Github if you want to change things.</li>
+      </ol>
+
+      <p>See an example: <a href="https://padolsey.at.hn">padolsey.at.hn</a>.</p>
+
+      <p><img src="/screenshot.jpg" alt="screenshot: go to your user/profile page on hacker news and then modify your about section to include, at minimum the phrase [your username].at.hn" /></p>
+    </div>
+    <footer>
+      <center><a href="https://padolsey.at.hn"><small title="From @padolsey">Made by James @padolsey</small></a> | <a href="https://github.com/padolsey/at.hn"><small>Contribute on github</small></a></center>
+    </footer>
+  </div>
+</body>
+</html>

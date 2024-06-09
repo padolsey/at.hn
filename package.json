@@ -1,0 +1,16 @@
+{
+  "name": "at.hn",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "npx nodemon --watch ./ --exec \"node server.mjs\"",
+    "run": "node server.mjs"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "jsdom": "^24.1.0",
+    "lru-cache": "^10.2.2",
+    "marked": "^12.0.2",
+    "p-queue": "^8.0.1",
+    "sanitize-html": "^2.13.0"
+  }
+}
