@@ -65,7 +65,7 @@ app.use(express.static(path.join(process.cwd(), 'public')));
 
 app.get('/user', async (req, res) => {
 
-  console.log('>req', req.url, req.headers);
+  console.log('>req', req.url);
 
   res.set('Content-Type', 'text/html');
 
