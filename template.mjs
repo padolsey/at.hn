@@ -5,6 +5,7 @@ export default ({
 }) => `
     <!doctype html>
     <html>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!--made by @padolsey // j11y.io-->
     <head><title>${user}.at.hn</title></head>
     <style>
