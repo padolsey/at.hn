@@ -64,6 +64,9 @@ const port = process.env.PORT || 4008;
 app.use(express.static(path.join(process.cwd(), 'public')));
 
 app.get('/user', async (req, res) => {
+
+  console.log('>req', req.url, req.headers);
+
   res.set('Content-Type', 'text/html');
 
   function respond(status = 200, html = '', cacheKey = null) {
