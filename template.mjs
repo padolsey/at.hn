@@ -71,7 +71,7 @@ export default ({
         </header>
         <div>${bioHtml}</div>
         <footer>
-          <center><small><a href="/">at.hn info</a></small></center>
+          <center><small><a href="https://at.hn/">at.hn info</a></small></center>
         </footer>
       </div>
     </body>

@@ -155,7 +155,7 @@ app.get('/user', async (req, res) => {
         console.log(`User bio not found or does not include the required link for user: ${user}`);
         return respond(
           404,
-          `<p style="text-align:center;">User bio not found or does not include the required link. If it is your bio, just include the text "${sansHtml(user)}.at.hn" and then wait and come back to <a href="refresh.</p>`,
+          `<p style="width:500px;margin:0 auto;text-align:center;font-size: 12pt; font-family: monospace; padding: 1em;">Hmmm, we cannot see you. Either you do not exist on HN or your bio text does not include the required reference to "${sansHtml(user)}.at.hn". If it is your bio, just include the text "${sansHtml(user)}.at.hn" and then wait and come back <a href="https://${sansHtml(user)}.at.hn/?refresh">here</a>. This ensures you have opted-in to have your bio visible on this site. Follow guidance on <a href="https://at.hn">at.hn</a> if lost.</p>`,
           cacheKey
         );
       } catch (error) {
