@@ -9,6 +9,7 @@ import crypto from 'crypto';
 import template from './template.mjs';
 import sanitizeHtml from 'sanitize-html';
 import rateLimit from 'express-rate-limit';
+import he from 'he';
 
 const PROFILES_DIR = path.join(process.cwd(), 'profiles');
 const KARMA_LINK_FOLLOW_MIN = 200;
@@ -152,7 +153,7 @@ app.get('/user', async (req, res) => {
             }
           });
 
-          const bioHtml = marked(profileData.about);
+          const bioHtml = marked(he.decode(profileData.about));
           const fields = {
             user: profileData.username,
             created: new Date(profileData.created_at).toLocaleDateString(),
