@@ -159,10 +159,14 @@ app.get('/user', async (req, res) => {
 
           const bioHtml = marked(
             he.decode(
-              profileData.about.replace(userAddrCheckR, '')
+              sansHtml(
+                profileData.about
+                  .replace(userAddrCheckR, '')
+                  .replace(/<p>/g, '<p>\n')
+              )
             )
           );
-          
+
           const fields = {
             user: profileData.username,
             created: new Date(profileData.created_at).toLocaleDateString(),
