@@ -155,7 +155,7 @@ app.get('/user', async (req, res) => {
         const userAddrCheckR =
           RegExp(`(<p>)?\s*?(https?://)?${user}.at.hn\s*(</p>)?`, 'i');
 
-        if (fields.about /*&& fields.about.match(userAddrCheckR)*/) {
+        if (fields.about && fields.about.match(userAddrCheckR)) {
 
           const karma = Number(fields?.karma?.match(/\d+/)?.[0] || 0);
 
