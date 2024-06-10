@@ -19,9 +19,9 @@ if (!fss.existsSync(PROFILES_DIR)) {
   fss.mkdirSync(PROFILES_DIR);
 }
 
-function sansHtml(html) {
+function sansHtml(html, tags = []) {
   return sanitizeHtml(html, {
-    allowedTags: []
+    allowedTags: tags
   });
 }
 
@@ -152,19 +152,31 @@ app.get('/user', async (req, res) => {
                 return `<img src="${encodeURI(href)}" alt="${sansHtml(txt)}" class="${txt == 'me' ? 'profile' : ''}" />`
               },
               link: (href, title, txt) => {
+
+                if (/^javascript:/i.test(href.trim())) {
+                  return '';
+                }
+
                 return `<a href="${encodeURI(href)}" title="${sansHtml(title) || ''}" target="_blank" rel="noopener noreferrer ${karma > KARMA_LINK_FOLLOW_MIN ? '' : 'nofollow'}">${sansHtml(txt)}</a>`;
               }
             }
           });
 
-          const bioHtml = marked(
-            he.decode(
-              sansHtml(
-                profileData.about
-                  .replace(userAddrCheckR, '')
-                  .replace(/<p>/g, '<p>\n')
+          const bioHtml = sansHtml( // run again to prevent badness
+            marked(
+              he.decode(
+                sansHtml(
+                  profileData.about
+                    .replace(userAddrCheckR, '')
+                    .replace(/<p>/g, '<p>\n')
+                )
               )
-            )
+            ),
+            [
+              'a', 'abbr', 'b', 'blockquote', 'br', 'caption', 'code',
+              'col', 'colgroup', 'dd', 'div', 'dl', 'dt', 'em', 'figcaption',
+              'figure', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'kbd', 'li', 'ol', 'p', 'pre', 's', 'section', 'small', 'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'u', 'ul'
+            ]
           );
 
           const fields = {
