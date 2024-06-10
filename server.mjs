@@ -167,10 +167,11 @@ app.get('/user', async (req, res) => {
               he.decode(
                 sansHtml(
                   profileData.about
-                    .replace(userAddrCheckR, '')
                     .replace(/<p>/g, '<p>\n')
                 )
-              )
+
+              // Replace the x.at.hn slug:
+              ).replace(userAddrCheckR, '')
             ),
             [
               'a', 'abbr', 'b', 'blockquote', 'br', 'caption', 'code',
