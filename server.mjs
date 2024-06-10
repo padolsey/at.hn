@@ -1,5 +1,4 @@
 import express from 'express';
-import { JSDOM } from 'jsdom';
 import { marked } from 'marked';
 import PQueue from 'p-queue';
 import { LRUCache as LRU } from 'lru-cache';
@@ -41,12 +40,13 @@ const shortTermCache = new LRU({
   ttl: 1000 * 5 // 5s
 });
 
-const fetchData = async (url) => {
-  const r = await fetch(url);
-  if (!r.ok) {
-    throw new Error(`Failed to fetch ${url}: ${r.statusText}`);
+const fetchData = async (username) => {
+  const url = `https://hn.algolia.com/api/v1/users/${username}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
   }
-  return r.text();
+  return response.json();
 };
 
 const hashUsernameForFS = (username) => {
@@ -136,30 +136,10 @@ app.get('/user', async (req, res) => {
     const fetchProfile = async () => {
       try {
         console.log(`Fetching profile for user: ${user}`);
-        const hnProfileUrl = `https://news.ycombinator.com/user?id=${user}`;
-        const html = await fetchData(hnProfileUrl);
+        const profileData = await fetchData(user);
 
-        const dom = new JSDOM(html);
-        const fields = [
-          ...dom.window.document.querySelectorAll('table table tr')
-        ].reduce((acc, tr) => {
-          const k = tr.querySelector('td')?.textContent;
-          if (['created:', 'user:', 'karma:', 'about:'].includes(k)) {
-            acc[k.slice(0, -1)] = sansHtml(
-              tr.querySelector('td:nth-child(2)')?.innerHTML
-                .replace(/<p>/g, '\n<p>\n').replace(/<\/p>/g, '\n</p>\n')
-              || ''
-            );
-          }
-          return acc;
-        }, {});
-
-        const userAddrCheckR =
-          RegExp(`(<p>)?\s*?(https?://)?${user}.at.hn\s*(</p>)?`, 'i');
-
-        if (fields.about && fields.about.match(userAddrCheckR)) {
-
-          const karma = Number(fields?.karma?.match(/\d+/)?.[0] || 0);
+        if (profileData.about) {
+          const karma = profileData.karma || 0;
 
           marked.use({
             renderer: {
@@ -172,9 +152,13 @@ app.get('/user', async (req, res) => {
             }
           });
 
-          const bioHtml = marked(
-            fields.about.replace(userAddrCheckR, '')
-          );
+          const bioHtml = marked(profileData.about);
+          const fields = {
+            user: profileData.username,
+            created: new Date(profileData.created_at).toLocaleDateString(),
+            karma: profileData.karma.toString(),
+            about: profileData.about
+          };
           const responseHtml = template({ user, bioHtml, fields });
 
           await fs.mkdir(path.join(process.cwd(), 'profiles'), { recursive: true });
@@ -206,7 +190,7 @@ app.get('/user', async (req, res) => {
           return;
         }
 
-        console.log(`User bio not found or does not include the required link for user: ${user}`);
+        console.log(`User bio not found for user: ${user}`);
         return respondError(
           `Hmmm, we cannot see you.
           <br/><br/>
