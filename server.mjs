@@ -206,7 +206,12 @@ app.get('/user', async (req, res) => {
 
         console.log(`User bio not found or does not include the required link for user: ${user}`);
         return respondError(
-          `Hmmm, we cannot see you. <br/><br/>Either you do not exist on HN or your bio text does not include the required reference to "${sansHtml(user)}.at.hn". If it is your bio, just include the text "${sansHtml(user)}.at.hn" and then <a href="https://${sansHtml(user)}.at.hn/?refresh">queue a refresh</a> after waiting a couple minutes. This ensures you have opted-in to have your bio visible on this site. <br/><br/>Follow guidance on <a href="https://at.hn">at.hn</a> if lost. If it's not working, best to just wait a couple minutes, try again, clear your browser cache, etc.`
+          `Hmmm, we cannot see you.
+          <br/><br/>
+          Either you do not exist on HN or your bio text does not include the required reference to "${sansHtml(user)}.at.hn". If it is your bio, then include the text "${sansHtml(user)}.at.hn". This ensures you have opted-in to have your bio visible on here.
+          <br/><br/>
+          Then <a href="https://${sansHtml(user)}.at.hn/?refresh">queue a refresh</a> after waiting a couple minutes.
+          <br/><br/>Follow guidance on <a href="https://at.hn">at.hn</a> if lost. If it's not working, best to just wait a couple minutes, try again, clear your browser cache, etc.`
         );
       } catch (error) {
         console.error(`Error fetching profile for user: ${user}`, error);
