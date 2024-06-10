@@ -136,10 +136,14 @@ app.get('/user', async (req, res) => {
 
     const fetchProfile = async () => {
       try {
-        console.log(`Fetching profile for user: ${user}`);
-        const profileData = await fetchData(user);
 
-        if (profileData.about) {
+        console.log(`Fetching profile for user: ${user}`);
+
+        const profileData = await fetchData(user);
+        const userAddrCheckR =
+          RegExp(`(<p>)?\s*?(https?://)?${user}.at.hn\s*(</p>)?`, 'i');
+
+        if (profileData.about && profileData.about.match(userAddrCheckR)) {
           const karma = profileData.karma || 0;
 
           marked.use({
@@ -153,7 +157,12 @@ app.get('/user', async (req, res) => {
             }
           });
 
-          const bioHtml = marked(he.decode(profileData.about));
+          const bioHtml = marked(
+            he.decode(
+              profileData.about.replace(userAddrCheckR, '')
+            )
+          );
+          
           const fields = {
             user: profileData.username,
             created: new Date(profileData.created_at).toLocaleDateString(),
