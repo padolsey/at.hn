@@ -56,6 +56,8 @@ const hashUsernameForFS = (username) => {
 const app = express();
 const port = process.env.PORT || 4008;
 
+app.set('trust proxy', true);
+
 app.use(express.static(path.join(process.cwd(), 'public')));
 
 app.use('/user', rateLimit({
