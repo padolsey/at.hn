@@ -31,6 +31,10 @@ export default ({
         margin: 0;
         padding: 0 0 .3em;
       }
+      header h1 a {
+        color: inherit;
+        text-decoration: none;
+      }
       header p {
         margin: 0;
         padding: 0;
@@ -41,6 +45,7 @@ export default ({
       img {
         max-width: 400px;
         max-height: 400px;
+        width: 100%;
       }
       @media only screen and (max-width: 750px) {
         #c {
@@ -51,7 +56,7 @@ export default ({
     <body>
       <div id="c">
         <header>
-          <h1>${user}<span>.at.hn</span></h1>
+          <h1><a href="https://${user}.at.hn">${user}<span>.at.hn</span></a></h1>
           <p>
             <small>
               <span>karma:</span> ${fields.karma}
@@ -72,7 +77,7 @@ export default ({
         </header>
         <div>${bioHtml}</div>
         <footer>
-          <center><small><a href="https://at.hn/">at.hn info</a></small></center>
+          <center><small><a href="https://at.hn/">at.hn info</a> | <a href="/?refresh">queue refresh</a></small></center>
         </footer>
       </div>
     </body>

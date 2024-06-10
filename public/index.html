@@ -26,17 +26,25 @@
     margin: 0;
     padding: 0 0 .3em;
   }
+  header h1 a {
+    color: inherit;
+    text-decoration: none;
+  }
   header p {
     margin: 0;
     padding: 0;
+    opacity: .8;
   }
   header span {
     color: #828282;
   }
-  header a {
+  header p a {
     pointer-events: none;
     color: #828282;
     text-decoration: underline;
+  }
+  ol li {
+    padding: .25em 0;
   }
   img {
     width: 97%;
@@ -53,7 +61,7 @@
 <body>
   <div id="c">
     <header>
-      <h1>{you?}<span>.at.hn</span></h1>
+      <h1><a href="https://at.hn">{you?}<span>.at.hn</span></a></h1>
       <p>
         <small>
           <span>karma:</span> 99999999
@@ -76,9 +84,11 @@
       <p>This is a richer way to display your <a href="https://news.ycombinator.com">hacker news</a> bio. To use it:
       </p>
       <ol>
-        <li>Paste <code>"{your username}.at.hn"</code> somewhere into your profile's 'about' section on HN.</li>
-        <li>Go to <code>https://{username}.at.hn</code> and you should see things. Add <code>"?refresh"</code> to the query to force a refresh.</li>
-        <li>Use markdown to make things prettier. Submit PRs on Github if you want to change things.</li>
+        <li>To opt-in, paste <code>"{your username}.at.hn"</code> anywhere in your profile's 'about' section.</li>
+        <li>Go to <code>https://{username}.at.hn?refresh</code>.</li>
+        <li>Between HN/our caching, you might need to wait a couple minutes.</li>
+        <li>Use markdown to make things prettier. Submit PRs <a href="https://github.com/padolsey/at.hn">on github</a> if you like.</li>
+        <li>Note: Outgoing links are <code>rel=nofollow</code> unless you're <code>&gt;200</code> karma (anti spam).
       </ol>
 
       <p>See an example: <a href="https://padolsey.at.hn">padolsey.at.hn</a>.</p>
