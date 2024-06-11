@@ -91,7 +91,7 @@
         <li>Go to <code>https://{username}.at.hn?refresh</code>.</li>
         <li>If your username includes uppercase letters or underscores, then due to DNS not supporting them in subdomains, you will need to encode them in a way that attempts to avoid conflicts (not ideal):
           <ol style="font-size: .9em;">
-            <li>Replace uppercase letters with '<code>{lowercase(L)}0xNN</code>' where 'NN' is the ASCII hex code of the uppercase letter. For example, '<code>RallyDriver</code>' becomes '<code>r0x52allyd0x44river</code>' (since 'R' is 0x52 and 'D' is 0x44 in ASCII).</li>
+            <li>Replace uppercase letters with '<code>{lowercase(L)}0xNN</code>' where 'NN' is the ASCII hex code of the uppercase letter. For example, '<code>RallyDriver</code>' becomes '<code>r0x52allyd0x44river</code>' (since 'R' is 0x52 and 'D' is 0x44 in ASCII). <a href="https://github.com/padolsey/at.hn/blob/486777e71951f7d76702ce2b0874bc27fdf9060d/server.mjs#L59">Code here if helpful.</a></li>
             <li>Replace underscores with '<code>0x5f</code>' such that '<code>rally_driver</code>' becomes '<code>rally0x5fdriver</code>' (since '_' is 0x5f in ASCII).</li>
           </ol>
         </li>
