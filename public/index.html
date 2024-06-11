@@ -89,12 +89,13 @@
       <ol>
         <li>To opt-in, paste <code>"{your username}.at.hn"</code> anywhere in your profile's 'about' section.</li>
         <li>Go to <code>https://{username}.at.hn?refresh</code>.</li>
-        <li>If your username includes uppercase letters or underscores then, due to DNS not supporting them in subdomains, and due to the helpful fact that HN does not allow periods in usernames, you can do the following:
+        <li>If your username includes uppercase letters or underscores, then due to DNS not supporting them in subdomains, you will need to encode them in a way that attempts to avoid conflicts (not ideal):
           <ol style="font-size: .9em;">
-            <li>Replace uppercase letters with '<code>0.{lowercase(L)}</code>' such that '<code>RallyDriver</code>' becomes '<code>0.rally.0.driver</code>'</li>
-            <li>Replace underscores with '<code>.1.</code>' such that '<code>rally_driver</code>' becomes '<code>rally.1.driver</code>'</li>
+            <li>Replace uppercase letters with '<code>{lowercase(L)}0xNN</code>' where 'NN' is the ASCII hex code of the uppercase letter. For example, '<code>RallyDriver</code>' becomes '<code>r0x52allyd0x44river</code>' (since 'R' is 0x52 and 'D' is 0x44 in ASCII).</li>
+            <li>Replace underscores with '<code>0x5f</code>' such that '<code>rally_driver</code>' becomes '<code>rally0x5fdriver</code>' (since '_' is 0x5f in ASCII).</li>
           </ol>
         </li>
+
         <li>Between HN/our caching, you might need to wait a couple minutes.</li>
         <li>Use markdown to make things prettier. Submit PRs <a href="https://github.com/padolsey/at.hn">on github</a> if you like.</li>
         <li>Note: Outgoing links are <code>rel=nofollow</code> unless you're <code>&gt;200</code> karma (anti spam).

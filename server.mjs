@@ -30,9 +30,8 @@ function sansHtml(html, tags = []) {
 // To avoid hammering HN, no more than 2 reqs in any given sec
 const queue = new PQueue({ concurrency: 2, interval: 1000 });
 
-// Dunno
 const midTermCache = new LRU({
-  max: 1_000, // Maximum number of items in cache
+  max: 1_000,
   ttl: 1000 * 60 * 60 * 3
 });
 
@@ -40,7 +39,7 @@ const midTermCache = new LRU({
 const shortTermCache = new LRU({
   allowStale: false,
   max: 100,
-  ttl: 1000 * 5 // 5s
+  ttl: 1000 * 5
 });
 
 const fetchData = async (username) => {
@@ -57,17 +56,15 @@ const hashUsernameForFS = (username) => {
   return crypto.createHash('md5').update(username).digest('hex');
 };
 
-// Because _ or uppercase letters can't be in subdomains
-// We allow them to be encoded
-// So Rally_Driver would be 0.rally.1.0.driver
 function encodeUsername(username) {
   return username
     .split('')
     .map(char => {
       if (char >= 'A' && char <= 'Z') {
-        return `0.${char.toLowerCase()}`;
+        const asciiHex = char.charCodeAt(0).toString(16);
+        return `${char.toLowerCase()}0x${asciiHex}`;
       } else if (char === '_') {
-        return '.1.';
+        return '0x5f';
       } else {
         return char;
       }
@@ -75,10 +72,13 @@ function encodeUsername(username) {
     .join('');
 }
 
-function decodeUsername(_encodedUsername) {
-  return _encodedUsername
-    .replace(/0\.(.)/g, (match, p1) => p1.toUpperCase())
-    .replace(/\.1\./g, '_');
+function decodeUsername(encodedUsername) {
+  return encodedUsername
+    .replace(/([a-z])0x([0-9a-f]{2})/g, (match, p1, p2) => {
+      const decodedChar = String.fromCharCode(parseInt(p2, 16));
+      return p1.toLowerCase() === decodedChar.toLowerCase() ? decodedChar.toUpperCase() : match;
+    })
+    .replace(/0x5f/g, '_');
 }
 
 const app = express();
@@ -113,7 +113,7 @@ app.get('/user', async (req, res) => {
     }
   }
 
-  function respondError(errHtml, status=404) {
+  function respondError(errHtml, status = 404) {
     return respond(status, `<p style="width:500px;margin:0 auto;text-align:left;font-size: 10pt; font-family: monospace; padding: 1em;">${errHtml}</p>`);
   }
 
@@ -131,7 +131,7 @@ app.get('/user', async (req, res) => {
   console.log(`Received request for user: ${user}, refresh: ${refresh}`);
 
   if (user && /\w/.test(user) && user.length < 255) {
-    const cacheKey = encodeUsername(user); // Use encoded username for cache key
+    const cacheKey = encodedUsername; // Use encoded username for cache key
     const hashKey = hashUsernameForFS(cacheKey);
     const filePath = path.join(PROFILES_DIR, `${hashKey}.html`);
 
@@ -168,10 +168,10 @@ app.get('/user', async (req, res) => {
       try {
         console.log(`Fetching profile for user: ${user}, Decoded: ${decodeUsername(user)}`);
 
-        const profileData = await fetchData(decodeUsername(user));
+        const profileData = await fetchData(decodedUsername);
 
-        const userAddrCheckEncoded = encodeUsername(user);
-        const userAddrCheckR = RegExp(`(<p>)?\\s*?(https?://)?(${decodeUsername(user)}|${userAddrCheckEncoded}).at.hn\\s*(</p>)?`, 'i');
+        const userAddrCheckEncoded = encodedUsername;
+        const userAddrCheckR = RegExp(`(<p>)?\\s*?(https?://)?(${decodedUsername}|${userAddrCheckEncoded}).at.hn\\s*(</p>)?`, 'i');
 
         if (profileData?.username && profileData.about.match(userAddrCheckR)) {
           const karma = profileData.karma || 0;
@@ -179,7 +179,7 @@ app.get('/user', async (req, res) => {
           marked.use({
             renderer: {
               image: (href, title, txt) => {
-                return `<img src="${encodeURI(href)}" alt="${sansHtml(txt)}" class="${txt == 'me' ? 'profile' : ''}" />`
+                return `<img src="${encodeURI(href)}" alt="${sansHtml(txt)}" class="${txt == 'me' ? 'profile' : ''}" />`;
               },
               link: (href, title, txt) => {
                 if (/^javascript:/i.test(href.trim())) {
@@ -191,16 +191,12 @@ app.get('/user', async (req, res) => {
           });
 
           const bioHtml = !profileData.about ? '' : sansHtml(
-            // run sansHtml two times to prevent badness
-            // (TODO: explanation)
             marked(
               he.decode(
                 sansHtml(
                   profileData.about
                     .replace(/<p>/g, '<p>\n') // help with bullet lists
                 )
-
-              // Replace the x.at.hn slug:
               ).replace(userAddrCheckR, '')
             ),
             [
@@ -256,7 +252,7 @@ app.get('/user', async (req, res) => {
         // Clear caches in case the user has changed to opt-out
         midTermCache.delete(cacheKey);
         shortTermCache.delete(cacheKey);
-        fs.unlink(filePath).catch(() => {});
+        fs.unlink(filePath).catch(() => { });
 
         throw 'Does not exist or bio not valid';
       } catch (error) {
@@ -300,3 +296,4 @@ app.get('/user', async (req, res) => {
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
+
