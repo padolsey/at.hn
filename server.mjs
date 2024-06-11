@@ -45,6 +45,7 @@ const shortTermCache = new LRU({
 
 const fetchData = async (username) => {
   const url = `https://hn.algolia.com/api/v1/users/${username}`;
+  console.log('Fetching', url);
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
@@ -55,6 +56,30 @@ const fetchData = async (username) => {
 const hashUsernameForFS = (username) => {
   return crypto.createHash('md5').update(username).digest('hex');
 };
+
+// Because _ or uppercase letters can't be in subdomains
+// We allow them to be encoded
+// So Rally_Driver would be 0.rally.1.0.driver
+function encodeUsername(username) {
+  return username
+    .split('')
+    .map(char => {
+      if (char >= 'A' && char <= 'Z') {
+        return `0.${char.toLowerCase()}`;
+      } else if (char === '_') {
+        return '.1.';
+      } else {
+        return char;
+      }
+    })
+    .join('');
+}
+
+function decodeUsername(_encodedUsername) {
+  return _encodedUsername
+    .replace(/0\.(.)/g, (match, p1) => p1.toUpperCase())
+    .replace(/\.1\./g, '_');
+}
 
 const app = express();
 const port = process.env.PORT || 4008;
@@ -89,7 +114,7 @@ app.get('/user', async (req, res) => {
   }
 
   function respondError(errHtml, status=404) {
-    return respond(status, `<p style="width:500px;margin:0 auto;text-align:center;font-size: 12pt; font-family: monospace; padding: 1em;">${errHtml}</p>`);
+    return respond(status, `<p style="width:500px;margin:0 auto;text-align:left;font-size: 10pt; font-family: monospace; padding: 1em;">${errHtml}</p>`);
   }
 
   if (queue.size > 1) {
@@ -100,11 +125,14 @@ app.get('/user', async (req, res) => {
   const user = urlParams.searchParams.get('user');
   const refresh = urlParams.searchParams.has('refresh');
 
+  const encodedUsername = encodeUsername(user);
+  const decodedUsername = decodeUsername(user);
+
   console.log(`Received request for user: ${user}, refresh: ${refresh}`);
 
   if (user && /\w/.test(user) && user.length < 255) {
-    const cacheKey = user;
-    const hashKey = hashUsernameForFS(user);
+    const cacheKey = encodeUsername(user); // Use encoded username for cache key
+    const hashKey = hashUsernameForFS(cacheKey);
     const filePath = path.join(PROFILES_DIR, `${hashKey}.html`);
 
     if (shortTermCache.has(cacheKey)) {
@@ -138,14 +166,14 @@ app.get('/user', async (req, res) => {
 
     const fetchProfile = async () => {
       try {
+        console.log(`Fetching profile for user: ${user}, Decoded: ${decodeUsername(user)}`);
 
-        console.log(`Fetching profile for user: ${user}`);
+        const profileData = await fetchData(decodeUsername(user));
 
-        const profileData = await fetchData(user);
-        const userAddrCheckR =
-          RegExp(`(<p>)?\s*?(https?://)?${user}.at.hn\s*(</p>)?`, 'i');
+        const userAddrCheckEncoded = encodeUsername(user);
+        const userAddrCheckR = RegExp(`(<p>)?\\s*?(https?://)?(${decodeUsername(user)}|${userAddrCheckEncoded}).at.hn\\s*(</p>)?`, 'i');
 
-        if (profileData.about && profileData.about.match(userAddrCheckR)) {
+        if (profileData?.username/* && profileData.about.match(userAddrCheckR)*/) {
           const karma = profileData.karma || 0;
 
           marked.use({
@@ -154,22 +182,22 @@ app.get('/user', async (req, res) => {
                 return `<img src="${encodeURI(href)}" alt="${sansHtml(txt)}" class="${txt == 'me' ? 'profile' : ''}" />`
               },
               link: (href, title, txt) => {
-
                 if (/^javascript:/i.test(href.trim())) {
                   return '';
                 }
-
                 return `<a href="${encodeURI(href)}" title="${sansHtml(title) || ''}" target="_blank" rel="noopener noreferrer ${karma > KARMA_LINK_FOLLOW_MIN ? '' : 'nofollow'}">${sansHtml(txt)}</a>`;
               }
             }
           });
 
-          const bioHtml = sansHtml( // run again to prevent badness
+          const bioHtml = !profileData.about ? '' : sansHtml(
+            // run sansHtml two times to prevent badness
+            // (TODO: explanation)
             marked(
               he.decode(
                 sansHtml(
                   profileData.about
-                    .replace(/<p>/g, '<p>\n')
+                    .replace(/<p>/g, '<p>\n') // help with bullet lists
                 )
 
               // Replace the x.at.hn slug:
@@ -188,7 +216,12 @@ app.get('/user', async (req, res) => {
             karma: profileData.karma.toString(),
             about: profileData.about
           };
-          const responseHtml = template({ user, bioHtml, fields });
+          const responseHtml = template({
+            encodedUsername,
+            decodedUsername,
+            bioHtml,
+            fields
+          });
 
           await fs.writeFile(filePath, responseHtml, 'utf8');
 
@@ -225,20 +258,16 @@ app.get('/user', async (req, res) => {
         shortTermCache.delete(cacheKey);
         fs.unlink(filePath).catch(() => {});
 
-        return respondError(
-          `Hmmm, we cannot see you.
-          <br/><br/>
-          Either you do not exist on HN or your bio text does not include the required reference to "${sansHtml(user)}.at.hn". If it is your bio, then include the text "${sansHtml(user)}.at.hn". This ensures you have opted-in to have your bio visible on here.
-          <br/><br/>
-          Then <a href="https://${sansHtml(user)}.at.hn/?refresh">queue a refresh</a> after waiting a couple minutes.
-          <br/><br/>Follow guidance on <a href="https://at.hn">at.hn</a> if lost. If it's not working, best to just wait a couple minutes, try again, clear your browser cache, etc.`
-        );
+        throw 'Does not exist or bio not valid';
       } catch (error) {
-        console.error(`Error fetching profile for user: ${user}`, error);
-        return respond(
-          500,
-          '<strong>Internal Server Error 34</strong>',
-          cacheKey
+        console.error(`No user at: ${user}. Error displayed.`);
+        return respondError(
+          `Hmmm, we cannot see you [<a href="https://hn.algolia.com/api/v1/users/${decodedUsername}">${decodedUsername}</a>]. It's possible that you've attempted a username that doesn't exist or is invalid. ${decodedUsername !== encodedUsername ? `If your username has uppercase letters or underscores, then encode them thus to access your URL here: <a href="${encodedUsername}.at.hn">${encodedUsername}.at.hn</a>` : ''}
+          <br/><br/>
+          Btw: Ensure that your bio text includes your URL/slug: "${sansHtml(encodedUsername)}.at.hn" or "${sansHtml(decodedUsername)}.at.hn". This ensures you have opted-in to have your bio visible on here.
+          <br/><br/>
+          Then <a href="https://${sansHtml(encodedUsername)}.at.hn/?refresh">queue a refresh</a> after waiting a couple minutes.
+          <br/><br/>Follow guidance on <a href="https://at.hn">at.hn</a> if lost. If it's not working, best to just wait a couple minutes, try again, clear your browser cache, etc.`
         );
       }
     };

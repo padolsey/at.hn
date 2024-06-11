@@ -44,7 +44,10 @@
     text-decoration: underline;
   }
   ol li {
-    padding: .25em 0;
+    padding: .35em 0;
+  }
+  ol li ol {
+    padding-top: .45em;
   }
   img {
     width: 97%;
@@ -86,6 +89,12 @@
       <ol>
         <li>To opt-in, paste <code>"{your username}.at.hn"</code> anywhere in your profile's 'about' section.</li>
         <li>Go to <code>https://{username}.at.hn?refresh</code>.</li>
+        <li>If your username includes uppercase letters or underscores then, due to DNS not supporting them in subdomains, and due to the helpful fact that HN does not allow periods in usernames, you can do the following:
+          <ol style="font-size: .9em;">
+            <li>Replace uppercase letters with '<code>0.{lowercase(L)}</code>' such that '<code>RallyDriver</code>' becomes '<code>0.rally.0.driver</code>'</li>
+            <li>Replace underscores with '<code>.1.</code>' such that '<code>rally_driver</code>' becomes '<code>rally.1.driver</code>'</li>
+          </ol>
+        </li>
         <li>Between HN/our caching, you might need to wait a couple minutes.</li>
         <li>Use markdown to make things prettier. Submit PRs <a href="https://github.com/padolsey/at.hn">on github</a> if you like.</li>
         <li>Note: Outgoing links are <code>rel=nofollow</code> unless you're <code>&gt;200</code> karma (anti spam).

@@ -1,5 +1,6 @@
 export default ({
-  user,
+  encodedUsername,
+  decodedUsername,
   fields,
   bioHtml
 }) => `
@@ -7,7 +8,7 @@ export default ({
     <html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!--made by @padolsey // j11y.io-->
-    <head><title>${user}.at.hn</title></head>
+    <head><title>${decodedUsername}.at.hn ${decodedUsername !== encodedUsername ? `(${encodedUsername})` : ''}</title></head>
     <style>
       html, body {
         margin: 0;
@@ -35,6 +36,11 @@ export default ({
         color: inherit;
         text-decoration: none;
       }
+      header h1 small {
+        font-size: .4em;
+        font-weight: normal;
+        color: #828282;
+      }
       header p {
         margin: 0;
         padding: 0;
@@ -56,22 +62,22 @@ export default ({
     <body>
       <div id="c">
         <header>
-          <h1><a href="https://${user}.at.hn">${user}<span>.at.hn</span></a></h1>
+          <h1><a href="https://${encodedUsername}.at.hn">${decodedUsername}<span>.at.hn</span> ${decodedUsername !== encodedUsername ? `<small>[://${encodedUsername}.at.hn]</small>` : ''}</a> </h1>
           <p>
             <small>
               <span>karma:</span> ${fields.karma}
             </small>
             |
             <small>
-              <span><a href="https://news.ycombinator.com/user?id=${user}">profile</a></span>
+              <span><a href="https://news.ycombinator.com/user?id=${encodedUsername}">profile</a></span>
             </small>
             |
             <small>
-              <span><a href="https://news.ycombinator.com/submitted?id=${user}">submissions</a></span>
+              <span><a href="https://news.ycombinator.com/submitted?id=${decodedUsername}">submissions</a></span>
             </small>
             |
             <small>
-              <span><a href="https://news.ycombinator.com/threads?id=${user}">comments</a></span>
+              <span><a href="https://news.ycombinator.com/threads?id=${decodedUsername}">comments</a></span>
             </small>
           </p>
         </header>
