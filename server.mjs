@@ -15,6 +15,8 @@ const PROFILES_DIR = path.join(process.cwd(), 'profiles');
 const KARMA_LINK_FOLLOW_MIN = 200;
 const REQ_TIMEOUT = 5000;
 
+fs.mkdir(path.join(process.cwd(), 'profiles'), { recursive: true });
+
 if (!fss.existsSync(PROFILES_DIR)) {
   fss.mkdirSync(PROFILES_DIR);
 }
@@ -188,7 +190,6 @@ app.get('/user', async (req, res) => {
           };
           const responseHtml = template({ user, bioHtml, fields });
 
-          await fs.mkdir(path.join(process.cwd(), 'profiles'), { recursive: true });
           await fs.writeFile(filePath, responseHtml, 'utf8');
 
           midTermCache.set(cacheKey, responseHtml);
@@ -218,6 +219,12 @@ app.get('/user', async (req, res) => {
         }
 
         console.log(`User bio not found for user: ${user}`);
+
+        // Clear caches in case the user has changed to opt-out
+        midTermCache.set(cacheKey, '');
+        shortTermCache.set(cacheKey, '');
+        await fs.unlink(filePath);
+
         return respondError(
           `Hmmm, we cannot see you.
           <br/><br/>
