@@ -12,6 +12,7 @@ import rateLimit from 'express-rate-limit';
 import he from 'he';
 
 const PROFILES_DIR = path.join(process.cwd(), 'profiles');
+const KARMA_MIN = 5;
 const KARMA_LINK_FOLLOW_MIN = 200;
 const REQ_TIMEOUT = 5000;
 
@@ -175,6 +176,10 @@ app.get('/user', async (req, res) => {
 
         if (profileData?.username && profileData.about.match(userAddrCheckR)) {
           const karma = profileData.karma || 0;
+
+          if (karma < KARMA_MIN) {
+            return respondError(`You need at least ${KARMA_MIN} karma to be here. This is an anti-spam measure. <3`)
+          }
 
           marked.use({
             renderer: {
