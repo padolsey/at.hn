@@ -173,7 +173,7 @@ app.get('/user', async (req, res) => {
         const userAddrCheckEncoded = encodeUsername(user);
         const userAddrCheckR = RegExp(`(<p>)?\\s*?(https?://)?(${decodeUsername(user)}|${userAddrCheckEncoded}).at.hn\\s*(</p>)?`, 'i');
 
-        if (profileData?.username/* && profileData.about.match(userAddrCheckR)*/) {
+        if (profileData?.username && profileData.about.match(userAddrCheckR)) {
           const karma = profileData.karma || 0;
 
           marked.use({
