@@ -223,7 +223,7 @@ app.get('/user', async (req, res) => {
         // Clear caches in case the user has changed to opt-out
         midTermCache.delete(cacheKey);
         shortTermCache.delete(cacheKey);
-        try {fs.unlink(filePath);} catch(e) {}
+        fs.unlink(filePath).catch(() => {});
 
         return respondError(
           `Hmmm, we cannot see you.
