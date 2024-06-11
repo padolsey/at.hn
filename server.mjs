@@ -262,7 +262,7 @@ app.get('/user', async (req, res) => {
       } catch (error) {
         console.error(`No user at: ${user}. Error displayed.`);
         return respondError(
-          `Hmmm, we cannot see you [<a href="https://hn.algolia.com/api/v1/users/${decodedUsername}">${decodedUsername}</a>]. It's possible that you've attempted a username that doesn't exist or is invalid. ${decodedUsername !== encodedUsername ? `If your username has uppercase letters or underscores, then encode them thus to access your URL here: <a href="${encodedUsername}.at.hn">${encodedUsername}.at.hn</a>` : ''}
+          `Hmmm, we cannot see you [<a href="https://hn.algolia.com/api/v1/users/${decodedUsername}">${decodedUsername}</a>]. It's possible that you've attempted a username that doesn't exist or is invalid. ${decodedUsername !== encodedUsername ? `If your username has uppercase letters or underscores, then encode them thus to access your URL here: <a href="https://${encodedUsername}.at.hn">${encodedUsername}.at.hn</a>` : ''}
           <br/><br/>
           Btw: Ensure that your bio text includes your URL/slug: "${sansHtml(encodedUsername)}.at.hn" or "${sansHtml(decodedUsername)}.at.hn". This ensures you have opted-in to have your bio visible on here.
           <br/><br/>
