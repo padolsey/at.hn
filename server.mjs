@@ -221,9 +221,9 @@ app.get('/user', async (req, res) => {
         console.log(`User bio not found for user: ${user}`);
 
         // Clear caches in case the user has changed to opt-out
-        midTermCache.set(cacheKey, '');
-        shortTermCache.set(cacheKey, '');
-        await fs.unlink(filePath);
+        midTermCache.delete(cacheKey);
+        shortTermCache.delete(cacheKey);
+        try {fs.unlink(filePath);} catch(e) {}
 
         return respondError(
           `Hmmm, we cannot see you.
