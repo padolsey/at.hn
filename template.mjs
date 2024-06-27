@@ -69,7 +69,7 @@ export default ({
             </small>
             |
             <small>
-              <span><a href="https://news.ycombinator.com/user?id=${encodedUsername}">profile</a></span>
+              <span><a href="https://news.ycombinator.com/user?id=${decodedUsername}">profile</a></span>
             </small>
             |
             <small>
