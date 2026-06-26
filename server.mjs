@@ -87,6 +87,18 @@ const port = process.env.PORT || 4008;
 
 app.set('trust proxy', true);
 
+// Replaces the old nginx wildcard rewrite: <sub>.at.hn -> /user?user=<sub>.
+// On Railway there's no nginx in front, so the app maps the subdomain itself.
+app.use((req, res, next) => {
+  const host = (req.headers.host || '').split(':')[0].toLowerCase();
+  const m = host.match(/^([^.]+)\.at\.hn$/); // single-label subdomain only
+  if (m && m[1] !== 'www' && req.path === '/') { // apex/www -> homepage; static assets fall through
+    const qs = req.url.includes('?') ? '&' + req.url.split('?')[1] : '';
+    req.url = `/user?user=${encodeURIComponent(m[1])}${qs}`;
+  }
+  next();
+});
+
 app.use(express.static(path.join(process.cwd(), 'public')));
 
 app.use('/user', rateLimit({
