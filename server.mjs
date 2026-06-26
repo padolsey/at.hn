@@ -89,10 +89,13 @@ app.set('trust proxy', true);
 
 // Replaces the old nginx wildcard rewrite: <sub>.at.hn -> /user?user=<sub>.
 // On Railway there's no nginx in front, so the app maps the subdomain itself.
+// Faithful to the old nginx: ANY non-asset path on a subdomain resolves to the
+// user's profile; static assets (favicon etc.) fall through to express.static;
+// apex/www serve the homepage.
 app.use((req, res, next) => {
   const host = (req.headers.host || '').split(':')[0].toLowerCase();
   const m = host.match(/^([^.]+)\.at\.hn$/); // single-label subdomain only
-  if (m && m[1] !== 'www' && req.path === '/') { // apex/www -> homepage; static assets fall through
+  if (m && m[1] !== 'www' && !/\.(?:html|css|js|png|jpg|jpeg|gif|ico|txt|svg|webp)$/i.test(req.path)) {
     const qs = req.url.includes('?') ? '&' + req.url.split('?')[1] : '';
     req.url = `/user?user=${encodeURIComponent(m[1])}${qs}`;
   }
