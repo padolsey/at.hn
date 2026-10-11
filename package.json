@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "NODE_ENV=development node --watch server.mjs",
-    "start": "NODE_ENV=production node server.mjs",
+    "start": "node start.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {

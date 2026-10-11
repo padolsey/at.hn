@@ -8,15 +8,18 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-export async function startApp(t, { fixtures = {}, env = {}, prepare } = {}) {
+export async function startApp(t, { fixtures = {}, env = {}, prepare, entryFile } = {}) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'athn-test-'));
   await fs.mkdir(path.join(dir, 'profiles'));
   await fs.mkdir(path.join(dir, 'public'));
   await fs.copyFile(path.join(root, 'public/index.html'), path.join(dir, 'public/index.html'));
   await prepare?.(dir);
-  const child = fork(fileURLToPath(new URL('./child.mjs', import.meta.url)), [], {
+  const fixtureModule = fileURLToPath(new URL('./child.mjs', import.meta.url));
+  const sourceDir = process.env.TEST_SOURCE_DIR || root;
+  const child = fork(entryFile ? path.join(sourceDir, entryFile) : fixtureModule, [], {
     cwd: dir,
-    env: { PATH: process.env.PATH, NODE_ENV: 'production', PORT: '0', TEST_SOURCE_DIR: process.env.TEST_SOURCE_DIR || root, TEST_FIXTURES: JSON.stringify(fixtures), ...env },
+    execArgv: entryFile ? ['--import', fixtureModule] : [],
+    env: { PATH: process.env.PATH, NODE_ENV: 'production', PORT: '0', TEST_SOURCE_DIR: sourceDir, TEST_FIXTURES: JSON.stringify(fixtures), ...env, ...(entryFile ? { TEST_PRELOAD_ONLY: '1' } : {}) },
     stdio: ['ignore', 'pipe', 'pipe', 'ipc']
   });
   const app = { dir, child, events: [], logs: '' };
