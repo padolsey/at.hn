@@ -55,9 +55,12 @@ test('opt-in must name the exact account and domain', async t => {
     wrong: { profile: { username: 'another', about: 'wrong.at.hn' } },
     sentence: { profile: { about: 'My profile: sentence.at.hn.' } },
     markdown: { profile: { about: '[markdown.at.hn](https://example.test)' } },
-    caps: { profile: { about: 'HTTPS://caps.AT.HN' } }
+    caps: { profile: { about: 'HTTPS://caps.AT.HN' } },
+    entitysuffix: { profile: { about: 'entitysuffix.at.hn&#46;evil.test' } },
+    entityjoined: { profile: { about: 'entityjoined.at.hn&#x5f;evil' } },
+    Case_sensitive: { profile: { about: 'case_sensitive.at.hn' } }
   } });
-  for (const user of ['victim', 'suffix', 'wrong']) assert.equal((await app.request('/user?user=' + user)).status, 404);
+  for (const user of ['victim', 'suffix', 'wrong', 'entitysuffix', 'entityjoined', 'Case_sensitive']) assert.equal((await app.request('/user?user=' + user)).status, 404);
   for (const user of ['fixture', 'sentence', 'markdown', 'caps']) assert.equal((await app.request('/user?user=' + user)).status, 200);
 });
 
