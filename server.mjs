@@ -32,8 +32,9 @@ function sansHtml(html, tags = [], karma = 0) {
   });
 }
 
-// To avoid hammering HN, no more than 2 reqs in any given sec
-const queue = new PQueue({ concurrency: 2, interval: 1000 });
+// Bound fetch starts to two per one-second queue interval.
+const queue = new PQueue({ concurrency: 2, interval: 1000, intervalCap: 2 });
+const pendingProfiles = new Map();
 
 const midTermCache = new LRU({
   max: 1_000,
@@ -47,15 +48,51 @@ const shortTermCache = new LRU({
   ttl: 1000 * 5
 });
 
-const fetchData = async (username) => {
-  const url = `https://hn.algolia.com/api/v1/users/${encodeURIComponent(username)}`;
-  console.log('Fetching', url);
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
+class ProfileError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
   }
-  return response.json();
+}
+
+const fetchData = async (username, signal) => {
+  const url = `https://hn.algolia.com/api/v1/users/${encodeURIComponent(username)}`;
+  try {
+    const response = await fetch(url, { signal });
+    if (!response.ok) {
+      throw new ProfileError('Profile upstream returned an error', response.status === 404 ? 404 : 502);
+    }
+    const data = await response.json();
+    signal.throwIfAborted();
+    return data;
+  } catch (err) {
+    if (signal.aborted) throw new ProfileError('Profile upstream timed out', 504);
+    if (err instanceof ProfileError) throw err;
+    throw new ProfileError('Profile upstream unavailable', 502);
+  }
 };
+
+function getProfileData(username) {
+  if (pendingProfiles.has(username)) return pendingProfiles.get(username);
+  if (queue.size >= 2) return Promise.reject(new ProfileError('Profile queue is full', 503));
+  // The deadline includes queue waiting, fetch, and JSON body consumption.
+  const signal = AbortSignal.timeout(REQ_TIMEOUT);
+  const queued = queue.add(() => fetchData(username, signal), { signal });
+  let onAbort;
+  const deadline = new Promise((resolve, reject) => {
+    onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+  const job = Promise.race([queued, deadline]).catch(err => {
+    if (signal.aborted) throw new ProfileError('Profile upstream timed out', 504);
+    throw err;
+  }).finally(() => {
+    signal.removeEventListener('abort', onAbort);
+    pendingProfiles.delete(username);
+  });
+  pendingProfiles.set(username, job);
+  return job;
+}
 
 const hashUsernameForFS = (username) => {
   return crypto.createHash('md5').update(username).digest('hex');
@@ -141,10 +178,6 @@ async function handleProfile(req, res) {
     return respond(status, `<p style="width:500px;margin:0 auto;text-align:left;font-size: 10pt; font-family: monospace; padding: 1em;">${errHtml}</p>`);
   }
 
-  if (queue.size > 1) {
-    return respondError('<a href="https://at.hn/">At.hn</a> user pages are being hammered. Queue is too large; please come back later.', 429);
-  }
-
   const urlParams = new URL(req.url, 'http://localhost');
   const users = urlParams.searchParams.getAll('user');
   const user = users.length === 1 ? users[0] : null;
@@ -199,7 +232,7 @@ async function handleProfile(req, res) {
       try {
         console.log(`Fetching profile for user: ${user}, Decoded: ${decodeUsername(user)}`);
 
-        const profileData = await fetchData(decodedUsername);
+        const profileData = await getProfileData(decodedUsername);
 
         const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         // HN identities are case-sensitive; DNS spelling is not. Normalize the
@@ -297,7 +330,13 @@ async function handleProfile(req, res) {
 
         throw 'Does not exist or bio not valid';
       } catch (error) {
-        console.error(`No user at: ${user}. Error displayed.`);
+        if (error instanceof ProfileError && error.status !== 404) {
+          if (error.status === 503) res.set('Retry-After', '5');
+          console.error(JSON.stringify({ event: 'profile_upstream_failure', status: error.status }));
+          return respondError(error.message, error.status);
+        }
+        if (error instanceof Error && !(error instanceof ProfileError)) throw error;
+        console.log(`No valid profile at: ${encodedUsername}`);
         return respondError(
           `Hmmm, we cannot see you [<a href="https://hn.algolia.com/api/v1/users/${decodedUsername}">${decodedUsername}</a>]. It's possible that you've attempted a username that doesn't exist or is invalid. Important: If your username has uppercase letters or underscores, then encode them according to the instructions on the <a href="https://at.hn">homepage</a>.
           <br/><br/>
@@ -309,25 +348,7 @@ async function handleProfile(req, res) {
       }
     };
 
-    // Race the timeout...
-    Promise.race([
-      queue.add(fetchProfile),
-      new Promise((resolve) => {
-        setTimeout(() => {
-          resolve('timeout');
-        }, REQ_TIMEOUT);
-      })
-    ])
-      .then((result) => {
-        if (result === 'timeout') {
-          console.log(`Request timed out and queued for user: ${user}`);
-          return respondError('Request has been queued. Please try again in a little bit.', 202);
-        }
-      })
-      .catch((error) => {
-        console.error(`Error in Promise.race for user: ${user}`, error);
-        respond(500, 'Internal Server Error');
-      });
+    await fetchProfile();
   } else {
     console.log('Bad request: valid user parameter is missing');
     return respondError('Bad Request. User param missing or invalid.', 400);

@@ -28,10 +28,19 @@ globalThis.fetch = async (url, options = {}) => {
     ok: fixture.status ? fixture.status === 200 : true,
     status: fixture.status || 200,
     statusText: 'Fixture status',
-    json: async () => ({
+    json: async () => {
+      if (fixture.bodyHang) {
+        await new Promise((resolve, reject) => {
+          const abort = () => reject(options.signal.reason);
+          if (options.signal?.aborted) abort();
+          else options.signal?.addEventListener('abort', abort, { once: true });
+        });
+      }
+      return ({
       username, about: `${username}.at.hn\n\nHello [external](https://example.test).`,
       karma: 10, created_at: '2020-01-01', ...fixture.profile
-    })
+      });
+    }
   };
 };
 
