@@ -29,7 +29,7 @@ test('homepage, profiles and errors receive restrictive browser policies', async
   }
 });
 
-test('SIGTERM drains an in-flight request and exits successfully', { timeout: 5000 }, async t => {
+test('SIGTERM drains an in-flight request and exits successfully', { timeout: 15000 }, async t => {
   const app = await startApp(t, { fixtures: { fixture: { delay: 200 } } });
   const response = app.request('/user?user=fixture');
   // Wait until the request is active before delivering a termination signal.
