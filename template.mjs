@@ -1,3 +1,7 @@
+import he from 'he';
+
+const escapeHtml = value => he.encode(String(value), { useNamedReferences: true });
+
 export default ({
   encodedUsername,
   decodedUsername,
@@ -8,7 +12,7 @@ export default ({
     <html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!--made by @padolsey // j11y.io-->
-    <head><title>${decodedUsername}.at.hn ${decodedUsername !== encodedUsername ? `(${encodedUsername})` : ''}</title></head>
+    <head><title>${escapeHtml(decodedUsername)}.at.hn ${decodedUsername !== encodedUsername ? `(${escapeHtml(encodedUsername)})` : ''}</title></head>
     <style>
       html, body {
         margin: 0;
@@ -62,22 +66,22 @@ export default ({
     <body>
       <div id="c">
         <header>
-          <h1><a href="https://${encodedUsername}.at.hn">${decodedUsername}<span>.at.hn</span> ${decodedUsername !== encodedUsername ? `<small>[://${encodedUsername}.at.hn]</small>` : ''}</a> </h1>
+          <h1><a href="https://${escapeHtml(encodedUsername)}.at.hn">${escapeHtml(decodedUsername)}<span>.at.hn</span> ${decodedUsername !== encodedUsername ? `<small>[://${escapeHtml(encodedUsername)}.at.hn]</small>` : ''}</a> </h1>
           <p>
             <small>
-              <span>karma:</span> ${fields.karma}
+              <span>karma:</span> ${escapeHtml(fields.karma)}
             </small>
             |
             <small>
-              <span><a href="https://news.ycombinator.com/user?id=${decodedUsername}">profile</a></span>
+              <span><a href="https://news.ycombinator.com/user?id=${encodeURIComponent(decodedUsername)}">profile</a></span>
             </small>
             |
             <small>
-              <span><a href="https://news.ycombinator.com/submitted?id=${decodedUsername}">submissions</a></span>
+              <span><a href="https://news.ycombinator.com/submitted?id=${encodeURIComponent(decodedUsername)}">submissions</a></span>
             </small>
             |
             <small>
-              <span><a href="https://news.ycombinator.com/threads?id=${decodedUsername}">comments</a></span>
+              <span><a href="https://news.ycombinator.com/threads?id=${encodeURIComponent(decodedUsername)}">comments</a></span>
             </small>
           </p>
         </header>
