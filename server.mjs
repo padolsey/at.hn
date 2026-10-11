@@ -203,7 +203,7 @@ async function handleProfile(req, res) {
 
         const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const names = [...new Set([decodedUsername, encodedUsername])].map(escapeRegex).join('|');
-        const userAddrCheckR = RegExp(`(?<![A-Za-z0-9_.-])(?:https?://)?(?:${names})\\.at\\.hn(?=$|[\\s<>\"'/?#),;!])`);
+        const userAddrCheckR = RegExp(`(?<![A-Za-z0-9_.-])(?:[hH][tT][tT][pP][sS]?://)?(?:${names})\\.[aA][tT]\\.[hH][nN](?=$|[\\s<>\"'/?#),;!\\\]]|\\.(?=$|[\\s<>\"'\\\]]))`);
         const about = typeof profileData?.about === 'string' ? profileData.about : '';
 
         if (profileData?.username === decodedUsername && about.match(userAddrCheckR)) {

@@ -52,10 +52,13 @@ test('opt-in must name the exact account and domain', async t => {
   const app = await startApp(t, { fixtures: {
     victim: { profile: { about: 'Unrelated prefixvictimXatYhn' } },
     suffix: { profile: { about: 'suffix.at.hn.evil.test' } },
-    wrong: { profile: { username: 'another', about: 'wrong.at.hn' } }
+    wrong: { profile: { username: 'another', about: 'wrong.at.hn' } },
+    sentence: { profile: { about: 'My profile: sentence.at.hn.' } },
+    markdown: { profile: { about: '[markdown.at.hn](https://example.test)' } },
+    caps: { profile: { about: 'HTTPS://caps.AT.HN' } }
   } });
   for (const user of ['victim', 'suffix', 'wrong']) assert.equal((await app.request('/user?user=' + user)).status, 404);
-  assert.equal((await app.request('/user?user=fixture')).status, 200);
+  for (const user of ['fixture', 'sentence', 'markdown', 'caps']) assert.equal((await app.request('/user?user=' + user)).status, 200);
 });
 
 test('all permitted anchors retain enforced nofollow and opener/referrer policy', async t => {
