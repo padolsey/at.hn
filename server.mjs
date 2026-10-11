@@ -89,6 +89,21 @@ function decodeUsername(encodedUsername) {
 }
 
 const app = express();
+let draining = false;
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.set({
+    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src https: http:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer'
+  });
+  if (process.env.NODE_ENV === 'production') res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  next();
+});
+app.get('/healthz', (req, res) => {
+  res.set('Cache-Control', 'no-store').status(draining ? 503 : 200).json({ status: draining ? 'draining' : 'ok' });
+});
 const port = process.env.PORT || 4008;
 
 app.set('trust proxy', true);
@@ -261,7 +276,19 @@ app.use((err, req, res, next) => {
   res.status(500).type('text/plain').send('Internal Server Error');
 });
 
-app.listen(port, () => {
+const host = process.env.HOST || (process.env.NODE_ENV === 'development' ? '127.0.0.1' : '0.0.0.0');
+const server = app.listen(port, host, () => {
   console.log(`Server is running on port ${port}`);
 });
 
+
+function shutdown() {
+  draining = true;
+  server.close(() => process.exit(0));
+  setTimeout(() => {
+    server.closeAllConnections();
+    process.exit(1);
+  }, 10_000).unref();
+}
+process.once('SIGTERM', shutdown);
+process.once('SIGINT', shutdown);
