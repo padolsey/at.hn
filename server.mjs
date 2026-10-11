@@ -1,30 +1,17 @@
 import express from 'express';
-import { marked } from 'marked';
 import PQueue from 'p-queue';
 import path from 'path';
 import template from './template.mjs';
-import sanitizeHtml from 'sanitize-html';
 import rateLimit from 'express-rate-limit';
-import he from 'he';
+import { renderBio, sansHtml } from './bio.mjs';
 import { ProfileCache } from './profile-cache.mjs';
 
 const PROFILES_DIR = path.join(process.cwd(), 'profiles');
 const KARMA_MIN = 5;
-const KARMA_LINK_FOLLOW_MIN = 200;
 const REQ_TIMEOUT = 5000;
 
 const profileCache = new ProfileCache(PROFILES_DIR);
 profileCache.prune().catch(() => {});
-
-function sansHtml(html, tags = [], karma = 0) {
-  return sanitizeHtml(html, {
-    allowedTags: tags,
-    allowedAttributes: { ...sanitizeHtml.defaults.allowedAttributes, a: ['href', 'name', 'target', 'rel'] },
-    transformTags: {
-      a: (tagName, attribs) => ({ tagName, attribs: { ...attribs, rel: karma > KARMA_LINK_FOLLOW_MIN ? 'noopener noreferrer' : 'noopener noreferrer nofollow' } })
-    }
-  });
-}
 
 // Bound fetch starts to two per one-second queue interval.
 const queue = new PQueue({ concurrency: 2, interval: 1000, intervalCap: 2 });
@@ -196,35 +183,7 @@ async function handleProfile(req, res) {
             return respondError(`You need at least ${KARMA_MIN} karma to be here. This is an anti-spam measure. <3`)
           }
 
-          marked.use({
-            renderer: {
-              image: (href, title, txt) => {
-                return `<img src="${he.encode(href, { useNamedReferences: true })}" alt="${he.encode(sansHtml(txt), { useNamedReferences: true })}" class="${txt == 'me' ? 'profile' : ''}" />`;
-              },
-              link: (href, title, txt) => {
-                if (/^javascript:/i.test(href.trim())) {
-                  return '';
-                }
-                return `<a href="${he.encode(href, { useNamedReferences: true })}" title="${he.encode(sansHtml(title || ''), { useNamedReferences: true })}" target="_blank" rel="noopener noreferrer ${karma > KARMA_LINK_FOLLOW_MIN ? '' : 'nofollow'}">${sansHtml(txt)}</a>`;
-              }
-            }
-          });
-
-          const bioHtml = !profileData.about ? '' : sansHtml(
-            marked(
-              he.decode(
-                sansHtml(
-                  about
-                    .replace(/<p>/g, '<p>\n') // help with bullet lists
-                )
-              ).replace(userAddrCheckR, '')
-            ),
-            [
-              'a', 'abbr', 'b', 'blockquote', 'br', 'caption', 'code',
-              'col', 'colgroup', 'dd', 'div', 'dl', 'dt', 'em', 'figcaption',
-              'figure', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'kbd', 'li', 'ol', 'p', 'pre', 's', 'section', 'small', 'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'u', 'ul'
-            ], karma
-          );
+          const bioHtml = renderBio(about, userAddrCheckR, karma);
 
           const fields = {
             user: profileData.username,
