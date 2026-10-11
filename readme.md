@@ -51,3 +51,16 @@ Do not use blanket trust or guess a hop count.
 IPv6 clients are normalized and share the 50/minute limit within a /56 subnet.
 This prevents equivalent spellings and rotation within that subnet from creating
 new buckets. Verify the grouping against genuine staging clients before rollout.
+
+For verified Railway public ingress, select `CLIENT_IP_SOURCE=railway-edge` and
+pin only observed ingress socket addresses in `TRUSTED_PROXY_CIDRS`. This mode
+uses the valid single `X-Real-IP` value only when the actual socket peer is trusted.
+It ignores `X-Forwarded-For` and Cloudflare headers when selecting the limiter key.
+Private/untrusted peers and missing, invalid or repeated client-IP values fall
+back to the socket address. Structured fallback warnings are bounded per process.
+
+Staging observed `100.64.0.2/32` and `100.64.0.3/32` on the tested ingress paths;
+these are deployment observations, not published Railway CIDRs or a permanent
+platform contract. Revalidate direct/Cloudflare paths, IPv4/IPv6 clients, private
+callers and both HTTP protocols on every deployment. Unknown future proxy peers
+fail closed to a shared socket bucket and require trust-configuration review.
