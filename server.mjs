@@ -184,11 +184,15 @@ async function handleProfile(req, res) {
         const profileData = await getProfileData(decodedUsername);
 
         const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const names = [...new Set([decodedUsername, encodedUsername])].map(escapeRegex).join('|');
+        // HN identities are case-sensitive; DNS spelling is not. Normalize the
+        // HTML representation of about before testing visible consent text.
+        const dnsName = [...encodedUsername].map(char => /[a-z]/i.test(char)
+          ? `[${char.toLowerCase()}${char.toUpperCase()}]` : escapeRegex(char)).join('');
+        const names = `${escapeRegex(decodedUsername)}|${dnsName}`;
         const userAddrCheckR = RegExp(`(?<![A-Za-z0-9_.-])(?:[hH][tT][tT][pP][sS]?://)?(?:${names})\\.[aA][tT]\\.[hH][nN](?=$|[\\s<>\"'/?#),;!\\\]]|\\.(?=$|[\\s<>\"'\\\]]))`);
         const about = typeof profileData?.about === 'string' ? profileData.about : '';
 
-        if (profileData?.username === decodedUsername && about.match(userAddrCheckR)) {
+        if (profileData?.username === decodedUsername && he.decode(about).match(userAddrCheckR)) {
           const karma = profileData.karma || 0;
 
           if (karma < KARMA_MIN) {
