@@ -32,11 +32,21 @@ test('edge key validates mode, peer and header before normalizing addresses', ()
     assert.equal(key(req(peer, '0:0:0:0:0:ffff:c000:201')), '192.0.2.1');
     assert.equal(key(req(peer, '2001:db8:1::1')), key(req(peer, '2001:0db8:1:ff::2')));
     assert.notEqual(key(req(peer, '2001:db8:1::1')), key(req(peer, '2001:db8:1:100::1')));
-    for (const value of [undefined, '', 'bad', '192.0.2.1, 192.0.2.2', ['192.0.2.1', '192.0.2.2']]) assert.equal(key(req(peer, value)), peer);
+    for (const value of [undefined, '', 'bad', '192.0.2.1, 192.0.2.2', ['192.0.2.1', '192.0.2.2']]) assert.equal(key(req(peer, value)), 'railway-unverified-ingress');
   }
-  for (const peer of ['10.250.24.111', '100.64.0.99']) assert.equal(key(req(peer, '192.0.2.1')), peer);
+  for (const peer of ['10.250.24.111', '100.64.0.99']) assert.equal(key(req(peer, '192.0.2.1')), 'railway-unverified-ingress');
   assert.equal(key(req('fd12:71f2:3b77::1', '192.0.2.1')), key(req('fd12:71f2:3b77::2', '192.0.2.99')));
   for (let i = 0; i < 100; i++) key(req(`10.0.0.${i}`, '192.0.2.1'));
   assert.equal(warnings.length, 16);
   assert.ok(warnings.every(value => value.event === 'client_ip_fallback'));
+});
+
+test('unknown rotating ingress and malformed headers share a single fallback quota', () => {
+  const key = createClientIpKey({ source: 'railway-edge', trustPeer: peer => peer === '100.64.0.2', warn: () => {} });
+  const request = (peer, value) => ({ socket: { remoteAddress: peer }, headers: { 'x-real-ip': value } });
+  const fallback = key(request('100.64.0.2', undefined));
+  for (let i = 3; i < 100; i++) assert.equal(key(request(`100.64.0.${i}`, `192.0.2.${i}`)), fallback);
+  assert.equal(key(request('10.250.24.111', '203.0.113.99')), fallback);
+  assert.equal(key(request('fd12:71f2:3b77::1', '203.0.113.99')), fallback);
+  assert.notEqual(key(request('100.64.0.2', '192.0.2.1')), fallback);
 });

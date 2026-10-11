@@ -17,6 +17,8 @@ export function createClientIpKey({ source = 'proxy', trustPeer, warn = value =>
       warned.add(warningKey);
       warn({ event: 'client_ip_fallback', reason, peer });
     }
-    return ipKeyGenerator(peer, 56);
+    // Unknown ingress must not gain a fresh quota by rotating proxy sockets.
+    // This shared bucket trades availability for a bounded request rate.
+    return 'railway-unverified-ingress';
   };
 }
