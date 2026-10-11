@@ -38,6 +38,17 @@ deployment during active requests and verify they complete before the old proces
 exits; process-only signal tests do not verify Railway's termination timing.
 Complete this check before production rollout.
 
+## Fixed staging route
+
+Reuse `https://rollout-6f6c1de8.at.hn` and Railway's `staging` environment for
+deployment checks. Despite its initial rollout name, this is a fixed hostname:
+keep its Cloudflare CNAME/TXT records and Railway domain registration between
+deployments. Do not create a new hostname or require DNS edits for each rollout.
+Keep staging fixtures and instrumentation out of the production launcher.
+Stop disposable test clients and idle staging deployments after verification;
+retain the environment, service instance and domain so the next check can use
+the same route.
+
 ## Proxy configuration
 
 `TRUSTED_PROXY_CIDRS` is a comma-separated list of verified ingress IPs/CIDRs.
