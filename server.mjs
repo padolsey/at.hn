@@ -7,6 +7,7 @@ import sanitizeHtml from 'sanitize-html';
 import rateLimit from 'express-rate-limit';
 import he from 'he';
 import { ProfileCache } from './profile-cache.mjs';
+import { trustedProxyCidrs } from './proxy-trust.mjs';
 
 const PROFILES_DIR = path.join(process.cwd(), 'profiles');
 const KARMA_MIN = 5;
@@ -104,7 +105,7 @@ function decodeUsername(encodedUsername) {
 const app = express();
 const port = process.env.PORT || 4008;
 
-app.set('trust proxy', true);
+app.set('trust proxy', trustedProxyCidrs(process.env.TRUSTED_PROXY_CIDRS));
 
 // Replaces the old nginx wildcard rewrite: <sub>.at.hn -> /user?user=<sub>.
 // On Railway there's no nginx in front, so the app maps the subdomain itself.
