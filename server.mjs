@@ -1,26 +1,20 @@
 import express from 'express';
 import { marked } from 'marked';
 import PQueue from 'p-queue';
-import { LRUCache as LRU } from 'lru-cache';
 import path from 'path';
-import fs from 'fs/promises';
-import fss from 'fs';
-import crypto from 'crypto';
 import template from './template.mjs';
 import sanitizeHtml from 'sanitize-html';
 import rateLimit from 'express-rate-limit';
 import he from 'he';
+import { ProfileCache } from './profile-cache.mjs';
 
 const PROFILES_DIR = path.join(process.cwd(), 'profiles');
 const KARMA_MIN = 5;
 const KARMA_LINK_FOLLOW_MIN = 200;
 const REQ_TIMEOUT = 5000;
 
-fs.mkdir(path.join(process.cwd(), 'profiles'), { recursive: true });
-
-if (!fss.existsSync(PROFILES_DIR)) {
-  fss.mkdirSync(PROFILES_DIR);
-}
+const profileCache = new ProfileCache(PROFILES_DIR);
+profileCache.prune().catch(() => {});
 
 function sansHtml(html, tags = [], karma = 0) {
   return sanitizeHtml(html, {
@@ -35,18 +29,6 @@ function sansHtml(html, tags = [], karma = 0) {
 // Bound fetch starts to two per one-second queue interval.
 const queue = new PQueue({ concurrency: 2, interval: 1000, intervalCap: 2 });
 const pendingProfiles = new Map();
-
-const midTermCache = new LRU({
-  max: 1_000,
-  ttl: 1000 * 60 * 60 * 3
-});
-
-// To avoid hammering with '?refresh'
-const shortTermCache = new LRU({
-  allowStale: false,
-  max: 100,
-  ttl: 1000 * 5
-});
 
 class ProfileError extends Error {
   constructor(message, status) {
@@ -93,10 +75,6 @@ function getProfileData(username) {
   pendingProfiles.set(username, job);
   return job;
 }
-
-const hashUsernameForFS = (username) => {
-  return crypto.createHash('md5').update(username).digest('hex');
-};
 
 function encodeUsername(username) {
   return username
@@ -166,10 +144,6 @@ async function handleProfile(req, res) {
   function respond(status = 200, html = '', cacheKey = null) {
     if (!responseSent) {
       responseSent = true;
-      if (cacheKey) {
-        midTermCache.set(cacheKey, html);
-        shortTermCache.set(cacheKey, html);
-      }
       res.status(status).send(html);
     }
   }
@@ -196,37 +170,12 @@ async function handleProfile(req, res) {
 
   if (user && /\w/.test(user) && user.length < 255) {
     const cacheKey = encodedUsername; // Use encoded username for cache key
-    const hashKey = hashUsernameForFS(cacheKey);
-    const filePath = path.join(PROFILES_DIR, `${hashKey}.html`);
-
-    if (shortTermCache.has(cacheKey)) {
-      console.log(`ShortTerm Cache hit for user: ${user}`);
-      res.send(shortTermCache.get(cacheKey));
-      return;
-    }
-
     if (!refresh) {
-      if (midTermCache.has(cacheKey)) {
-        console.log(`MidTerm Cache hit for user: ${user}`);
-        res.send(midTermCache.get(cacheKey));
-        return;
-      }
-
-      try {
-        const fileContent = await fs.readFile(filePath, 'utf8');
-        console.log(`File Cache hit for user: ${user}`);
-        res.send(fileContent);
-        midTermCache.set(cacheKey, fileContent);
-        shortTermCache.set(cacheKey, fileContent);
-        return;
-      } catch (err) {
-        if (err.code !== 'ENOENT') {
-          console.error(`Error reading cache file for user: ${user}`, err);
-          res.status(500).send('<strong>Internal Server Error 92</strong>');
-          return;
-        }
-      }
+      const cached = await profileCache.get(cacheKey);
+      if (cached) return respond(cached.status, cached.html);
     }
+
+    const revoke = () => profileCache.put(cacheKey, '<p>Profile unavailable. Check your HN opt-in and karma.</p>', 404);
 
     const fetchProfile = async () => {
       try {
@@ -243,6 +192,7 @@ async function handleProfile(req, res) {
           const karma = profileData.karma || 0;
 
           if (karma < KARMA_MIN) {
+            await revoke();
             return respondError(`You need at least ${KARMA_MIN} karma to be here. This is an anti-spam measure. <3`)
           }
 
@@ -289,10 +239,7 @@ async function handleProfile(req, res) {
             fields
           });
 
-          await fs.writeFile(filePath, responseHtml, 'utf8');
-
-          midTermCache.set(cacheKey, responseHtml);
-          shortTermCache.set(cacheKey, responseHtml);
+          await profileCache.put(cacheKey, responseHtml);
 
           console.log(`Profile fetched and cached for user: ${user}`);
 
@@ -319,13 +266,11 @@ async function handleProfile(req, res) {
 
         console.log(`User bio not found for user: ${user}`);
 
-        // Clear caches in case the user has changed to opt-out
-        midTermCache.delete(cacheKey);
-        shortTermCache.delete(cacheKey);
-        fs.unlink(filePath).catch(() => { });
+        await revoke();
 
         throw 'Does not exist or bio not valid';
       } catch (error) {
+        if (error instanceof ProfileError && error.status === 404) await revoke();
         if (error instanceof ProfileError && error.status !== 404) {
           if (error.status === 503) res.set('Retry-After', '5');
           console.error(JSON.stringify({ event: 'profile_upstream_failure', status: error.status }));
