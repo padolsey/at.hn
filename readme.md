@@ -47,3 +47,7 @@ Before deploying, establish the Cloudflare/Railway forwarding chain and
 configure only its trusted ingress ranges. Verify multiple genuine clients
 and spoofed `X-Forwarded-For` values through every ingress path in staging.
 Do not use blanket trust or guess a hop count.
+
+IPv6 clients are normalized and share the 50/minute limit within a /56 subnet.
+This prevents equivalent spellings and rotation within that subnet from creating
+new buckets. Verify the grouping against genuine staging clients before rollout.

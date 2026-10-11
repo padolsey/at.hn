@@ -129,7 +129,8 @@ app.use(express.static(path.join(process.cwd(), 'public')));
 
 app.use('/user', rateLimit({
   windowMs: 1 * 60 * 1000,
-  max: 50,
+  limit: 50,
+  ipv6Subnet: 56,
   message: 'Too many requests from this IP, please try again after a minute.'
 }));
 
