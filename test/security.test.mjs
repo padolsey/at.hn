@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import template from '../template.mjs';
+import path from 'node:path';
 import { startApp } from './support/app.mjs';
+
+const { default: template } = await import(process.env.TEST_SOURCE_DIR
+  ? path.join(process.env.TEST_SOURCE_DIR, 'template.mjs') : '../template.mjs');
 
 test('missing and invalid usernames return 400 without terminating the server', async t => {
   const app = await startApp(t);
