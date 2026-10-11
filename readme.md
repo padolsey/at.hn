@@ -27,7 +27,13 @@ inline styles and HTTP/HTTPS images remain permitted.
 
 Production rollout requires Railway's Custom Start Command to be `node start.mjs`,
 Healthcheck Path `/healthz`, and Healthcheck Timeout 30 seconds. These service
-settings are not applied by this repository change. `start.mjs` selects production
+settings also require `RAILWAY_DEPLOYMENT_DRAINING_SECONDS=15` (or an effective
+draining interval above ten seconds with margin). Railway's default is zero
+seconds between SIGTERM and SIGKILL; see its [deployment reference](https://docs.railway.com/deployments/reference).
+These settings are not applied by this repository change. `start.mjs` selects production
 mode itself. Run Node directly; `npm start` adds a launcher that can intercept
 SIGTERM. When launching through a shell, use `exec node start.mjs`. Verify the
-effective command, readiness and draining in staging before production rollout.
+effective command, readiness and draining interval in staging. Replace a staging
+deployment during active requests and verify they complete before the old process
+exits; process-only signal tests do not verify Railway's termination timing.
+Complete this check before production rollout.
