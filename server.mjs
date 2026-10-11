@@ -3,6 +3,7 @@ import PQueue from 'p-queue';
 import path from 'path';
 import template from './template.mjs';
 import rateLimit from 'express-rate-limit';
+import he from 'he';
 import { renderBio, sansHtml } from './bio.mjs';
 import { ProfileCache } from './profile-cache.mjs';
 
