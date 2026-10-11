@@ -22,9 +22,13 @@ if (!fss.existsSync(PROFILES_DIR)) {
   fss.mkdirSync(PROFILES_DIR);
 }
 
-function sansHtml(html, tags = []) {
+function sansHtml(html, tags = [], karma = 0) {
   return sanitizeHtml(html, {
-    allowedTags: tags
+    allowedTags: tags,
+    allowedAttributes: { ...sanitizeHtml.defaults.allowedAttributes, a: ['href', 'name', 'target', 'rel'] },
+    transformTags: {
+      a: (tagName, attribs) => ({ tagName, attribs: { ...attribs, rel: karma > KARMA_LINK_FOLLOW_MIN ? 'noopener noreferrer' : 'noopener noreferrer nofollow' } })
+    }
   });
 }
 
@@ -44,7 +48,7 @@ const shortTermCache = new LRU({
 });
 
 const fetchData = async (username) => {
-  const url = `https://hn.algolia.com/api/v1/users/${username}`;
+  const url = `https://hn.algolia.com/api/v1/users/${encodeURIComponent(username)}`;
   console.log('Fetching', url);
   const response = await fetch(url);
   if (!response.ok) {
@@ -110,7 +114,11 @@ app.use('/user', rateLimit({
   message: 'Too many requests from this IP, please try again after a minute.'
 }));
 
-app.get('/user', async (req, res) => {
+app.get('/user', (req, res, next) => {
+  handleProfile(req, res).catch(next);
+});
+
+async function handleProfile(req, res) {
 
   console.log('>req', req.url, 'queue size:', queue.size);
 
@@ -137,12 +145,19 @@ app.get('/user', async (req, res) => {
     return respondError('<a href="https://at.hn/">At.hn</a> user pages are being hammered. Queue is too large; please come back later.', 429);
   }
 
-  const urlParams = new URL(req.url, `http://${req.headers.host}`);
-  const user = urlParams.searchParams.get('user');
+  const urlParams = new URL(req.url, 'http://localhost');
+  const users = urlParams.searchParams.getAll('user');
+  const user = users.length === 1 ? users[0] : null;
   const refresh = urlParams.searchParams.has('refresh');
 
-  const encodedUsername = encodeUsername(user);
+  if (typeof user !== 'string' || !/^[A-Za-z0-9_-]{1,63}$/.test(user)) {
+    return respondError('Bad Request. User param missing or invalid.', 400);
+  }
   const decodedUsername = decodeUsername(user);
+  const encodedUsername = encodeUsername(decodedUsername);
+  if (encodedUsername.length > 63) {
+    return respondError('Bad Request. Encoded username is too long.', 400);
+  }
 
   console.log(`Received request for user: ${user}, refresh: ${refresh}`);
 
@@ -186,10 +201,16 @@ app.get('/user', async (req, res) => {
 
         const profileData = await fetchData(decodedUsername);
 
-        const userAddrCheckEncoded = encodedUsername;
-        const userAddrCheckR = RegExp(`(<p>)?\\s*?(https?://)?(${decodedUsername}|${userAddrCheckEncoded}).at.hn\\s*(</p>)?`, 'i');
+        const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // HN identities are case-sensitive; DNS spelling is not. Normalize the
+        // HTML representation of about before testing visible consent text.
+        const dnsName = [...encodedUsername].map(char => /[a-z]/i.test(char)
+          ? `[${char.toLowerCase()}${char.toUpperCase()}]` : escapeRegex(char)).join('');
+        const names = `${escapeRegex(decodedUsername)}|${dnsName}`;
+        const userAddrCheckR = RegExp(`(?<![A-Za-z0-9_.-])(?:[hH][tT][tT][pP][sS]?://)?(?:${names})\\.[aA][tT]\\.[hH][nN](?=$|[\\s<>\"'/?#),;!\\\]]|\\.(?=$|[\\s<>\"'\\\]]))`);
+        const about = typeof profileData?.about === 'string' ? profileData.about : '';
 
-        if (profileData?.username && profileData.about.match(userAddrCheckR)) {
+        if (profileData?.username === decodedUsername && he.decode(about).match(userAddrCheckR)) {
           const karma = profileData.karma || 0;
 
           if (karma < KARMA_MIN) {
@@ -199,13 +220,13 @@ app.get('/user', async (req, res) => {
           marked.use({
             renderer: {
               image: (href, title, txt) => {
-                return `<img src="${encodeURI(href)}" alt="${sansHtml(txt)}" class="${txt == 'me' ? 'profile' : ''}" />`;
+                return `<img src="${he.encode(href, { useNamedReferences: true })}" alt="${he.encode(sansHtml(txt), { useNamedReferences: true })}" class="${txt == 'me' ? 'profile' : ''}" />`;
               },
               link: (href, title, txt) => {
                 if (/^javascript:/i.test(href.trim())) {
                   return '';
                 }
-                return `<a href="${encodeURI(href)}" title="${sansHtml(title) || ''}" target="_blank" rel="noopener noreferrer ${karma > KARMA_LINK_FOLLOW_MIN ? '' : 'nofollow'}">${sansHtml(txt)}</a>`;
+                return `<a href="${he.encode(href, { useNamedReferences: true })}" title="${he.encode(sansHtml(title || ''), { useNamedReferences: true })}" target="_blank" rel="noopener noreferrer ${karma > KARMA_LINK_FOLLOW_MIN ? '' : 'nofollow'}">${sansHtml(txt)}</a>`;
               }
             }
           });
@@ -214,7 +235,7 @@ app.get('/user', async (req, res) => {
             marked(
               he.decode(
                 sansHtml(
-                  profileData.about
+                  about
                     .replace(/<p>/g, '<p>\n') // help with bullet lists
                 )
               ).replace(userAddrCheckR, '')
@@ -223,7 +244,7 @@ app.get('/user', async (req, res) => {
               'a', 'abbr', 'b', 'blockquote', 'br', 'caption', 'code',
               'col', 'colgroup', 'dd', 'div', 'dl', 'dt', 'em', 'figcaption',
               'figure', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'kbd', 'li', 'ol', 'p', 'pre', 's', 'section', 'small', 'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'u', 'ul'
-            ]
+            ], karma
           );
 
           const fields = {
@@ -248,8 +269,8 @@ app.get('/user', async (req, res) => {
 
           if (refresh) {
             const redirect = process.env.NODE_ENV === 'development'
-              ? `http://localhost:4008/user/?user=${user}`
-              : `https://${user}.at.hn`;
+              ? `http://localhost:${port}/user/?user=${encodeURIComponent(encodedUsername)}`
+              : `https://${encodedUsername}.at.hn`;
 
             console.log('Refreshed - redirecting', redirect);
 
@@ -311,6 +332,12 @@ app.get('/user', async (req, res) => {
     console.log('Bad request: valid user parameter is missing');
     return respondError('Bad Request. User param missing or invalid.', 400);
   }
+}
+
+app.use((err, req, res, next) => {
+  console.error('Profile request failed:', err.message);
+  if (res.headersSent) return next(err);
+  res.status(500).type('text/plain').send('Internal Server Error');
 });
 
 app.listen(port, () => {
