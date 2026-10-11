@@ -6,6 +6,8 @@ import rateLimit from 'express-rate-limit';
 import he from 'he';
 import { renderBio, sansHtml } from './bio.mjs';
 import { ProfileCache } from './profile-cache.mjs';
+import { trustedProxyCidrs } from './proxy-trust.mjs';
+import { createClientIpKey } from './client-ip.mjs';
 
 const PROFILES_DIR = path.join(process.cwd(), 'profiles');
 const KARMA_MIN = 5;
@@ -107,7 +109,11 @@ app.get('/healthz', (req, res) => {
 });
 const port = process.env.PORT || 4008;
 
-app.set('trust proxy', true);
+const proxyCidrs = trustedProxyCidrs(process.env.TRUSTED_PROXY_CIDRS);
+app.set('trust proxy', proxyCidrs);
+const clientIpSource = process.env.CLIENT_IP_SOURCE || 'proxy';
+if (clientIpSource === 'railway-edge' && !proxyCidrs) throw new Error('railway-edge requires explicit TRUSTED_PROXY_CIDRS');
+const clientIpKey = createClientIpKey({ source: clientIpSource, trustPeer: app.get('trust proxy fn') });
 
 // Replaces the old nginx wildcard rewrite: <sub>.at.hn -> /user?user=<sub>.
 // On Railway there's no nginx in front, so the app maps the subdomain itself.
@@ -128,7 +134,8 @@ app.use(express.static(path.join(process.cwd(), 'public')));
 
 app.use('/user', rateLimit({
   windowMs: 1 * 60 * 1000,
-  max: 50,
+  limit: 50,
+  keyGenerator: clientIpKey,
   message: 'Too many requests from this IP, please try again after a minute.'
 }));
 
