@@ -23,7 +23,7 @@ test('trusted ingress uses the closest untrusted client address', async t => {
 test('blanket trust and malformed CIDRs are rejected', () => {
   assert.equal(trustedProxyCidrs(), false);
   assert.deepEqual(trustedProxyCidrs('10.0.0.0/8, ::1/128'), ['10.0.0.0/8', '::1/128']);
-  for (const value of ['true', '1', 'loopback', '0.0.0.0/0', '10.0.0.1/33', '::ffff:10.0.0.0/8', '::ffff:0.0.0.0/96', '0:0:0:0:0:ffff:0:0/8', '0:0:0:0:0:ffff:0:0/96', '10.0.0.1/32/1']) {
+  for (const value of ['true', '1', 'loopback', '::/1', '::1/8', '0:0:0:1::/32', '0.0.0.0/0', '10.0.0.1/33', '::ffff:10.0.0.0/8', '::ffff:0.0.0.0/96', '0:0:0:0:0:ffff:0:0/8', '0:0:0:0:0:ffff:0:0/96', '10.0.0.1/32/1']) {
     assert.throws(() => trustedProxyCidrs(value));
   }
 });
