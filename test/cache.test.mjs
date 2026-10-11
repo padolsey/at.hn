@@ -32,11 +32,11 @@ for (const fixture of [{ profile: { karma: 0 } }, { profile: { about: null } }, 
 }
 
 test('refresh bypasses memory and disk cache; upstream failures retain only fresh cached content', async t => {
-  const app = await startApp(t, { fixtures: { fixture: { error: true } }, prepare: dir => seed(dir, 'fixture') });
+  const app = await startApp(t, { fixtures: { fixture: { sequence: [{}, { error: true }] } } });
   assert.equal((await app.request('/user?user=fixture')).status, 200);
   assert.equal((await app.request('/user?user=fixture&refresh')).status, 502);
   assert.equal((await app.request('/user?user=fixture')).status, 200);
-  assert.equal(app.events.filter(event => event.type === 'fetch').length, 1);
+  assert.equal(app.events.filter(event => event.type === 'fetch').length, 2);
 });
 
 test('atomic cache writes and disk failures do not prevent valid profile responses', async t => {

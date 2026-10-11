@@ -10,10 +10,14 @@ net.Server.prototype.listen = function (...args) {
   });
 };
 
+const calls = new Map();
 const fixtures = JSON.parse(process.env.TEST_FIXTURES || '{}');
 globalThis.fetch = async (url, options = {}) => {
   const username = decodeURIComponent(String(url).split('/').at(-1));
-  const fixture = fixtures[username] || {};
+  const source = fixtures[username] || {};
+  const count = calls.get(username) || 0;
+  calls.set(username, count + 1);
+  const fixture = source.sequence ? source.sequence[Math.min(count, source.sequence.length - 1)] : source;
   process.send({ type: 'fetch', username, signal: Boolean(options.signal), time: Date.now() });
   if (fixture.hang || fixture.delay) {
     await new Promise((resolve, reject) => {
