@@ -48,4 +48,4 @@ globalThis.fetch = async (url, options = {}) => {
   };
 };
 
-await import(path.join(process.env.TEST_SOURCE_DIR, 'server.mjs'));
+if (!process.env.TEST_PRELOAD_ONLY) await import(path.join(process.env.TEST_SOURCE_DIR, 'server.mjs'));

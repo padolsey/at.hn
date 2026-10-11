@@ -41,3 +41,21 @@ test('SIGTERM drains an in-flight request and exits successfully', { timeout: 15
   assert.equal(code, 0);
   assert.equal(signal, null);
 });
+
+test('direct production entry sets production mode and receives SIGTERM', { timeout: 15000 }, async t => {
+  const app = await startApp(t, {
+    entryFile: 'start.mjs', env: { NODE_ENV: 'development' },
+    fixtures: { fixture: { delay: 200 } }
+  });
+  const health = await app.request('/healthz');
+  assert.equal(health.status, 200);
+  assert.equal(health.headers['strict-transport-security'], 'max-age=31536000; includeSubDomains');
+  const response = app.request('/user?user=fixture');
+  while (!app.events.some(event => event.type === 'fetch')) await new Promise(resolve => setTimeout(resolve, 5));
+  const exited = once(app.child, 'exit');
+  app.child.kill('SIGTERM');
+  assert.equal((await response).status, 200);
+  const [code, signal] = await exited;
+  assert.equal(code, 0);
+  assert.equal(signal, null);
+});
