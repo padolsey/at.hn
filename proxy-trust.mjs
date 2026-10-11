@@ -13,8 +13,8 @@ export function trustedProxyCidrs(value = '') {
     const subnet = new net.BlockList();
     const prefixIsValid = prefix !== undefined && /^\d+$/.test(prefix) && Number(prefix) <= bits;
     if (family === 6 && prefixIsValid) subnet.addSubnet(canonical, Number(prefix), 'ipv6');
-    const zeroLeadingIpv6 = family === 6 && prefixIsValid && Number(prefix) < 96 && subnet.check('::', 'ipv6');
-    if (zeroLeadingIpv6 || !family || extra !== undefined || (prefix !== undefined &&
+    const blanketIpv4 = family === 6 && prefixIsValid && Number(prefix) <= 96 && subnet.check('::ffff:0.0.0.0', 'ipv6');
+    if (blanketIpv4 || !family || extra !== undefined || (prefix !== undefined &&
         (!/^\d+$/.test(prefix) || Number(prefix) < 1 || Number(prefix) > bits)) ||
         (canonical.toLowerCase().startsWith('::ffff:') && prefix !== undefined && Number(prefix) <= 96)) {
       throw new Error('TRUSTED_PROXY_CIDRS must contain explicit IP addresses or valid CIDRs');
