@@ -32,8 +32,8 @@ function sansHtml(html, tags = [], karma = 0) {
   });
 }
 
-// To avoid hammering HN, no more than 2 reqs in any given sec
-const queue = new PQueue({ concurrency: 2, interval: 1000, intervalCap: 2, carryoverConcurrencyCount: true });
+// Bound fetch starts to two per one-second queue interval.
+const queue = new PQueue({ concurrency: 2, interval: 1000, intervalCap: 2 });
 const pendingProfiles = new Map();
 
 const midTermCache = new LRU({
@@ -77,10 +77,19 @@ function getProfileData(username) {
   if (queue.size >= 2) return Promise.reject(new ProfileError('Profile queue is full', 503));
   // The deadline includes queue waiting, fetch, and JSON body consumption.
   const signal = AbortSignal.timeout(REQ_TIMEOUT);
-  const job = queue.add(() => fetchData(username, signal), { signal }).catch(err => {
+  const queued = queue.add(() => fetchData(username, signal), { signal });
+  let onAbort;
+  const deadline = new Promise((resolve, reject) => {
+    onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+  const job = Promise.race([queued, deadline]).catch(err => {
     if (signal.aborted) throw new ProfileError('Profile upstream timed out', 504);
     throw err;
-  }).finally(() => pendingProfiles.delete(username));
+  }).finally(() => {
+    signal.removeEventListener('abort', onAbort);
+    pendingProfiles.delete(username);
+  });
   pendingProfiles.set(username, job);
   return job;
 }

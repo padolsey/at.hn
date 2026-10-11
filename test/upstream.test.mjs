@@ -22,11 +22,14 @@ test('timeouts release active and queued work while cached pages remain usable',
   const fixtures = Object.fromEntries(['one', 'two', 'three', 'four'].map(user => [user, { hang: true }]));
   const app = await startApp(t, { fixtures });
   assert.equal((await app.request('/user?user=cached')).status, 200);
+  await delay(150);
+  const started = Date.now();
   const pending = ['one', 'two', 'three'].map(user => app.request('/user?user=' + user + '&refresh'));
   await delay(100);
   assert.equal((await app.request('/user?user=four&refresh')).status, 503);
   assert.equal((await app.request('/user?user=cached')).status, 200);
   assert.deepEqual((await Promise.all(pending)).map(res => res.status), [504, 504, 504]);
+  assert.ok(Date.now() - started < 5500, 'queued deadline must not wait for a later interval tick');
   assert.equal((await app.request('/user?user=recovered')).status, 200);
   assert.ok(app.events.filter(event => event.type === 'fetch').every(event => event.signal));
 });
@@ -38,4 +41,12 @@ test('upstream failures use distinguishable status codes', async t => {
   assert.equal((await app.request('/user?user=missing')).status, 404);
   assert.equal((await app.request('/user?user=failing')).status, 502);
   assert.equal((await app.request('/user?user=broken')).status, 502);
+});
+
+test('deadline covers response-body consumption and queue recovers', { timeout: 12000 }, async t => {
+  const app = await startApp(t, { fixtures: { slowbody: { bodyHang: true } } });
+  const started = Date.now();
+  assert.equal((await app.request('/user?user=slowbody')).status, 504);
+  assert.ok(Date.now() - started < 5500);
+  assert.equal((await app.request('/user?user=recovered')).status, 200);
 });
