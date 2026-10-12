@@ -12,7 +12,7 @@ export async function startApp(t, { fixtures = {}, env = {}, prepare, entryFile 
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'athn-test-'));
   await fs.mkdir(path.join(dir, 'profiles'));
   await fs.mkdir(path.join(dir, 'public'));
-  await fs.copyFile(path.join(root, 'public/index.html'), path.join(dir, 'public/index.html'));
+  await fs.cp(path.join(root, 'public'), path.join(dir, 'public'), { recursive: true });
   await prepare?.(dir);
   const fixtureModule = fileURLToPath(new URL('./child.mjs', import.meta.url));
   const sourceDir = process.env.TEST_SOURCE_DIR || root;

@@ -2,7 +2,28 @@
 
 See [at.hn](https://at.hn);
 
-This is proxied into by nginx but when in development you can go to `localhost:4008/user/?user=___`
+Run `npm ci` and `npm run dev`, then visit `http://localhost:4008` (or the
+configured `PORT`). Development binds to loopback. Use the homepage setup helper
+to generate an address from an exact, case-sensitive HN username. The helper and
+profile pages work without JavaScript. Production routes `username.at.hn` to the
+profile directly; development also supports `/user?user=___`.
+
+## Setup, updates and removal
+
+The setup helper accepts a raw HN username and generates the existing encoded
+address automatically. It rejects names that cannot round-trip through the
+legacy encoding or fit a DNS label, rather than linking to a different account.
+It does not contact HN until the user follows “Check my profile”. The minimum
+karma remains 5, and opting in still requires editing the HN bio.
+
+Profiles show when the upstream index was last checked, with links to refresh,
+edit on HN and instructions to remove the opt-in text. Refresh checks bypass
+at.hn's cache, but the Algolia HN index can lag edits on HN. The three-hour cache
+bound starts at an upstream check, not at the time someone edits their HN bio.
+Profile responses and setup pages use `Cache-Control: no-store` so browser or
+proxy caches do not hide a subsequent refresh or confirmed removal. Detailed
+404 pages, including a retry link, are cached on confirmed ineligibility; upstream
+failures remain distinct 502/503/504 responses with retry guidance.
 
 ## Profile cache policy
 
@@ -22,8 +43,9 @@ It is reserved on apex and user hosts. Monitor profile error/timeout rates
 separately: process readiness is not a check of Algolia availability.
 SIGTERM drains HTTP requests for up to
 ten seconds. Development binds loopback by default; `HOST` can select a bind
-address. Browser policies prohibit scripts, forms, base-tag changes and framing;
-inline styles and HTTP/HTTPS images remain permitted.
+address. Browser policies prohibit scripts, base-tag changes and framing; inline styles
+and HTTP/HTTPS images remain permitted. Only the homepage and setup helper allow
+same-origin forms. Profiles and profile errors continue to prohibit forms.
 
 Production rollout requires Railway's Custom Start Command to be `node start.mjs`,
 Healthcheck Path `/healthz`, and Healthcheck Timeout 30 seconds. These service
