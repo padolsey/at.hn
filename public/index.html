@@ -1,7 +1,7 @@
 <!doctype html>
-<html>
+<html lang="en">
 <!--made by @padolsey // j11y.io-->
-<head><title>at.hn</title></head>
+<head><meta charset="utf-8"><title>at.hn</title></head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <style>
   html, body {
@@ -55,6 +55,21 @@
     display: block;
     margin: 0 auto;
   }
+  .setup-helper {
+    margin: 1em 0;
+    padding: .75em;
+    border: 1px solid #ccc;
+  }
+  .setup-helper label { display: block; margin-bottom: .4em; }
+  .setup-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5em; }
+  .setup-helper input { width: 24em; max-width: 100%; min-width: 0; padding: .3em; font: inherit; }
+  .setup-helper button { padding: .3em .6em; font: inherit; cursor: pointer; }
+  .setup-helper input[readonly] { font-family: monospace; }
+  .setup-helper p { margin: .6em 0 0; }
+  .setup-hint { color: #555; font-size: .9em; }
+  #setup-result { margin-top: .8em; overflow-wrap: anywhere; }
+  #setup-error { color: #9b2115; }
+  .setup-helper :focus-visible { outline: 2px solid #174c76; outline-offset: 2px; }
   @media only screen and (max-width: 750px) {
     #c {
       width: 100%;
@@ -86,10 +101,29 @@
     <div>
       <p>This is a richer way to display your <a href="https://news.ycombinator.com">hacker news</a> bio. To use it:
       </p>
+      <form id="setup-helper" class="setup-helper" action="/setup" method="get" data-profile-mode="subdomain">
+        <label for="setup-username">Your HN username</label>
+        <div class="setup-row">
+          <input id="setup-username" name="username" required maxlength="63" autocapitalize="none" spellcheck="false" autocomplete="off" aria-describedby="setup-hint setup-error">
+          <button id="setup-submit" type="submit">Get my address</button>
+        </div>
+        <p id="setup-hint" class="setup-hint">Use the same uppercase and lowercase letters as on HN. Accounts need at least 5 karma.</p>
+        <p id="setup-error" role="status" hidden></p>
+        <div id="setup-result" hidden>
+          <label for="generated-address">Add this text to your HN bio</label>
+          <div class="setup-row">
+            <input id="generated-address" readonly>
+            <button id="copy-address" type="button">Copy</button>
+          </div>
+          <p><a id="edit-profile" target="_blank" rel="noopener noreferrer">Open your HN profile (new tab)</a>, paste the address into your 'about' section and save. Then <a id="check-profile">check my profile</a>.</p>
+          <p>Your page: <a id="profile-address"></a></p>
+          <p id="copy-status" class="setup-hint" role="status"></p>
+        </div>
+      </form>
       <ol>
         <li>To opt-in, paste <code>"{your username}.at.hn"</code> anywhere in your profile's 'about' section.</li>
         <li>Go to <code>https://{username}.at.hn?refresh</code>.</li>
-        <li>If your username includes uppercase letters or underscores, then due to DNS not supporting them in subdomains, you will need to encode them in a way that attempts to avoid conflicts (not ideal):
+        <li>If your username includes uppercase letters or underscores, the helper above encodes them for you. Here's how the encoding works (not ideal):
           <ol style="font-size: .9em;">
             <li>Replace uppercase letters with '<code>{lowercase(L)}0xNN</code>' where 'NN' is the ASCII hex code of the uppercase letter. For example, '<code>RallyDriver</code>' becomes '<code>r0x52allyd0x44river</code>' (since 'R' is 0x52 and 'D' is 0x44 in ASCII). <a href="https://github.com/padolsey/at.hn/blob/486777e71951f7d76702ce2b0874bc27fdf9060d/server.mjs#L59">Code here if helpful.</a></li>
             <li>Replace underscores with '<code>0x5f</code>' such that '<code>rally_driver</code>' becomes '<code>rally0x5fdriver</code>' (since '_' is 0x5f in ASCII).</li>
@@ -109,5 +143,6 @@
       <center><a href="https://padolsey.at.hn"><small title="From @padolsey">Made by James @padolsey</small></a> | <a href="https://github.com/padolsey/at.hn"><small>Contribute on github</small></a></center>
     </footer>
   </div>
+  <script type="module" src="/setup-helper.mjs"></script>
 </body>
 </html>

@@ -4,10 +4,14 @@ import path from 'path';
 import template from './template.mjs';
 import rateLimit from 'express-rate-limit';
 import he from 'he';
-import { renderBio, sansHtml } from './bio.mjs';
+import { renderBio } from './bio.mjs';
 import { ProfileCache } from './profile-cache.mjs';
 import { trustedProxyCidrs } from './proxy-trust.mjs';
 import { createClientIpKey } from './client-ip.mjs';
+import { encodeUsername, decodeUsername } from './public/username.mjs';
+import { homePage, setupPage, profileStatusPage } from './setup.mjs';
+import { profileUrl } from './page.mjs';
+import { previewHost } from './preview.mjs';
 
 const PROFILES_DIR = path.join(process.cwd(), 'profiles');
 const KARMA_MIN = 5;
@@ -66,42 +70,19 @@ function getProfileData(username) {
   return job;
 }
 
-function encodeUsername(username) {
-  return username
-    .split('')
-    .map(char => {
-      if (char >= 'A' && char <= 'Z') {
-        const asciiHex = char.charCodeAt(0).toString(16);
-        return `${char.toLowerCase()}0x${asciiHex}`;
-      } else if (char === '_') {
-        return '0x5f';
-      } else {
-        return char;
-      }
-    })
-    .join('');
-}
-
-function decodeUsername(encodedUsername) {
-  return encodedUsername
-    .replace(/([a-z])0x([0-9a-f]{2})/g, (match, p1, p2) => {
-      const decodedChar = String.fromCharCode(parseInt(p2, 16));
-      return p1.toLowerCase() === decodedChar.toLowerCase() ? decodedChar.toUpperCase() : match;
-    })
-    .replace(/0x5f/g, '_');
-}
-
+const BROWSER_POLICY = "default-src 'none'; style-src 'unsafe-inline'; img-src https: http:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const app = express();
 let draining = false;
 app.disable('x-powered-by');
 app.use((req, res, next) => {
   res.set({
-    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src https: http:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    'Content-Security-Policy': BROWSER_POLICY,
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'no-referrer'
   });
   if (process.env.NODE_ENV === 'production') res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  if (previewHost) res.set('X-Robots-Tag', 'noindex, nofollow');
   next();
 });
 app.get('/healthz', (req, res) => {
@@ -123,11 +104,28 @@ const clientIpKey = createClientIpKey({ source: clientIpSource, trustPeer: app.g
 app.use((req, res, next) => {
   const host = (req.headers.host || '').split(':')[0].toLowerCase();
   const m = host.match(/^([^.]+)\.at\.hn$/); // single-label subdomain only
-  if (m && m[1] !== 'www' && !/\.(?:html|css|js|png|jpg|jpeg|gif|ico|txt|svg|webp)$/i.test(req.path)) {
+  req.profileHost = Boolean(m && m[1] !== 'www' && host !== previewHost);
+  if (req.profileHost && !/\.(?:html|css|mjs|js|png|jpg|jpeg|gif|ico|txt|svg|webp)$/i.test(req.path)) {
     const qs = req.url.includes('?') ? '&' + req.url.split('?')[1] : '';
     req.url = `/user?user=${encodeURIComponent(m[1])}${qs}`;
   }
   next();
+});
+
+// Only these application-owned pages permit same-origin form submissions.
+// Profiles and their error pages keep form-action 'none' and prohibit scripts.
+app.get(['/', '/index.html', '/setup'], (req, res) => {
+  if (req.profileHost) return res.status(404).type('text/plain').send('Page not found');
+  res.set({
+    'Content-Security-Policy': BROWSER_POLICY.replace("form-action 'none'", "form-action 'self'"),
+    'Cache-Control': 'no-store'
+  });
+  if (req.path === '/setup') {
+    const result = setupPage(new URL(req.url, 'http://localhost').searchParams);
+    return res.status(result.status).type('html').send(result.html);
+  }
+  res.set('Content-Security-Policy', BROWSER_POLICY.replace("form-action 'none'", "form-action 'self'") + "; script-src 'self'; script-src-attr 'none'");
+  res.type('html').send(homePage());
 });
 
 app.use(express.static(path.join(process.cwd(), 'public')));
@@ -144,142 +142,68 @@ app.get('/user', (req, res, next) => {
 });
 
 async function handleProfile(req, res) {
-
-  console.log('>req', req.url, 'queue size:', queue.size);
-
-  res.set('Content-Type', 'text/html');
-
-  let responseSent = false;
-
-  function respond(status = 200, html = '', cacheKey = null) {
-    if (!responseSent) {
-      responseSent = true;
-      res.status(status).send(html);
-    }
-  }
-
-  function respondError(errHtml, status = 404) {
-    return respond(status, `<p style="width:500px;margin:0 auto;text-align:left;font-size: 10pt; font-family: monospace; padding: 1em;">${errHtml}</p>`);
-  }
-
+  // Refresh/removal must not be hidden by a browser or intermediary's old HTML.
+  res.type('html').set('Cache-Control', 'no-store');
   const urlParams = new URL(req.url, 'http://localhost');
   const users = urlParams.searchParams.getAll('user');
   const user = users.length === 1 ? users[0] : null;
   const refresh = urlParams.searchParams.has('refresh');
 
-  if (typeof user !== 'string' || !/^[A-Za-z0-9_-]{1,63}$/.test(user)) {
-    return respondError('Bad Request. User param missing or invalid.', 400);
+  if (typeof user !== 'string' || !/^[A-Za-z0-9_-]{1,63}$/.test(user) || !/\w/.test(user)) {
+    return res.status(400).send(profileStatusPage({ kind: 'invalid' }));
   }
   const decodedUsername = decodeUsername(user);
   const encodedUsername = encodeUsername(decodedUsername);
   if (encodedUsername.length > 63) {
-    return respondError('Bad Request. Encoded username is too long.', 400);
+    return res.status(400).send(profileStatusPage({ kind: 'invalid' }));
+  }
+  const statusPage = kind => profileStatusPage({ kind, encodedUsername, decodedUsername });
+  if (!refresh) {
+    const cached = await profileCache.get(encodedUsername);
+    if (cached) return res.status(cached.status).send(cached.html);
+  }
+  const revoke = async kind => {
+    const html = statusPage(kind);
+    await profileCache.put(encodedUsername, html, 404);
+    return res.status(404).send(html);
+  };
+
+  let profileData;
+  try {
+    profileData = await getProfileData(decodedUsername);
+  } catch (error) {
+    if (!(error instanceof ProfileError)) throw error;
+    if (error.status === 404) return revoke('missing');
+    const kind = { 502: 'unavailable', 503: 'busy', 504: 'timeout' }[error.status];
+    res.set('Retry-After', error.status === 503 ? '5' : '30');
+    console.error(JSON.stringify({ event: 'profile_upstream_failure', status: error.status }));
+    return res.status(error.status).send(statusPage(kind));
   }
 
-  console.log(`Received request for user: ${user}, refresh: ${refresh}`);
+  const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // HN identities are case-sensitive; DNS spelling is not. Normalize the
+  // HTML representation of about before testing visible consent text.
+  const dnsName = [...encodedUsername].map(char => /[a-z]/i.test(char)
+    ? `[${char.toLowerCase()}${char.toUpperCase()}]` : escapeRegex(char)).join('');
+  const names = `${escapeRegex(decodedUsername)}|${dnsName}`;
+  const userAddrCheckR = RegExp(`(?<![A-Za-z0-9_.-])(?:[hH][tT][tT][pP][sS]?://)?(?:${names})\\.[aA][tT]\\.[hH][nN](?=$|[\\s<>\"'/?#),;!\\\]]|\\.(?=$|[\\s<>\"'\\\]]))`);
+  const about = typeof profileData?.about === 'string' ? profileData.about : '';
 
-  if (user && /\w/.test(user) && user.length < 255) {
-    const cacheKey = encodedUsername; // Use encoded username for cache key
-    if (!refresh) {
-      const cached = await profileCache.get(cacheKey);
-      if (cached) return respond(cached.status, cached.html);
-    }
+  if (profileData?.username !== decodedUsername) return revoke('missing');
+  if (!he.decode(about).match(userAddrCheckR)) return revoke('optin');
+  const karma = profileData.karma || 0;
+  if (karma < KARMA_MIN) return revoke('karma');
 
-    const revoke = () => profileCache.put(cacheKey, '<p>Profile unavailable. Check your HN opt-in and karma.</p>', 404);
-
-    const fetchProfile = async () => {
-      try {
-        console.log(`Fetching profile for user: ${user}, Decoded: ${decodeUsername(user)}`);
-
-        const profileData = await getProfileData(decodedUsername);
-
-        const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // HN identities are case-sensitive; DNS spelling is not. Normalize the
-        // HTML representation of about before testing visible consent text.
-        const dnsName = [...encodedUsername].map(char => /[a-z]/i.test(char)
-          ? `[${char.toLowerCase()}${char.toUpperCase()}]` : escapeRegex(char)).join('');
-        const names = `${escapeRegex(decodedUsername)}|${dnsName}`;
-        const userAddrCheckR = RegExp(`(?<![A-Za-z0-9_.-])(?:[hH][tT][tT][pP][sS]?://)?(?:${names})\\.[aA][tT]\\.[hH][nN](?=$|[\\s<>\"'/?#),;!\\\]]|\\.(?=$|[\\s<>\"'\\\]]))`);
-        const about = typeof profileData?.about === 'string' ? profileData.about : '';
-
-        if (profileData?.username === decodedUsername && he.decode(about).match(userAddrCheckR)) {
-          const karma = profileData.karma || 0;
-
-          if (karma < KARMA_MIN) {
-            await revoke();
-            return respondError(`You need at least ${KARMA_MIN} karma to be here. This is an anti-spam measure. <3`)
-          }
-
-          const bioHtml = renderBio(about, userAddrCheckR, karma);
-
-          const fields = {
-            user: profileData.username,
-            created: new Date(profileData.created_at).toLocaleDateString(),
-            karma: profileData.karma.toString(),
-            about: profileData.about
-          };
-          const responseHtml = template({
-            encodedUsername,
-            decodedUsername,
-            bioHtml,
-            fields
-          });
-
-          await profileCache.put(cacheKey, responseHtml);
-
-          console.log(`Profile fetched and cached for user: ${user}`);
-
-          if (refresh) {
-            const redirect = process.env.NODE_ENV === 'development'
-              ? `http://localhost:${port}/user/?user=${encodeURIComponent(encodedUsername)}`
-              : `https://${encodedUsername}.at.hn`;
-
-            console.log('Refreshed - redirecting', redirect);
-
-            if (!responseSent) {
-              responseSent = true;
-              res.redirect(
-                303,
-                redirect
-              );
-            }
-            return;
-          }
-
-          respond(200, responseHtml, cacheKey);
-          return;
-        }
-
-        console.log(`User bio not found for user: ${user}`);
-
-        await revoke();
-
-        throw 'Does not exist or bio not valid';
-      } catch (error) {
-        if (error instanceof ProfileError && error.status === 404) await revoke();
-        if (error instanceof ProfileError && error.status !== 404) {
-          if (error.status === 503) res.set('Retry-After', '5');
-          console.error(JSON.stringify({ event: 'profile_upstream_failure', status: error.status }));
-          return respondError(error.message, error.status);
-        }
-        if (error instanceof Error && !(error instanceof ProfileError)) throw error;
-        console.log(`No valid profile at: ${encodedUsername}`);
-        return respondError(
-          `Hmmm, we cannot see you [<a href="https://hn.algolia.com/api/v1/users/${decodedUsername}">${decodedUsername}</a>]. It's possible that you've attempted a username that doesn't exist or is invalid. Important: If your username has uppercase letters or underscores, then encode them according to the instructions on the <a href="https://at.hn">homepage</a>.
-          <br/><br/>
-          Btw: Ensure that your bio text includes your URL/slug: "${sansHtml(encodedUsername)}.at.hn" or "${sansHtml(decodedUsername)}.at.hn". This ensures you have opted-in to have your bio visible on here.
-          <br/><br/>
-          Then <a href="https://${sansHtml(encodedUsername)}.at.hn/?refresh">queue a refresh</a> after waiting a couple minutes.
-          <br/><br/>Follow guidance on <a href="https://at.hn">at.hn</a> if lost. If it's not working, best to just wait a couple minutes, try again, clear your browser cache, etc.`
-        );
-      }
-    };
-
-    await fetchProfile();
-  } else {
-    console.log('Bad request: valid user parameter is missing');
-    return respondError('Bad Request. User param missing or invalid.', 400);
-  }
+  const responseHtml = template({
+    encodedUsername,
+    decodedUsername,
+    bioHtml: renderBio(about, userAddrCheckR, karma),
+    fields: { karma },
+    checkedAt: Date.now()
+  });
+  await profileCache.put(encodedUsername, responseHtml);
+  if (refresh) return res.redirect(303, profileUrl(encodedUsername));
+  return res.status(200).send(responseHtml);
 }
 
 app.use((err, req, res, next) => {

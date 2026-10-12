@@ -1,95 +1,33 @@
-import he from 'he';
+import page, { escapeHtml as e, homeUrl, profileUrl } from './page.mjs';
 
-const escapeHtml = value => he.encode(String(value), { useNamedReferences: true });
-
-export default ({
-  encodedUsername,
-  decodedUsername,
-  fields,
-  bioHtml
-}) => `
-    <!doctype html>
-    <html>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!--made by @padolsey // j11y.io-->
-    <head><title>${escapeHtml(decodedUsername)}.at.hn ${decodedUsername !== encodedUsername ? `(${escapeHtml(encodedUsername)})` : ''}</title></head>
-    <style>
-      html, body {
-        margin: 0;
-        padding: 0;
-      }
-      body {
-        padding: 1em;
-        font-size: 10pt;
-        font-family: Verdana, Geneva, sans-serif;
-      }
-      * {
-        box-sizing: border-box;
-      }
-      #c {
-        background: #f6f6ef;
-        width: 80%;
-        margin: 0 auto;
-        padding: 1em;
-      }
-      header h1 {
-        margin: 0;
-        padding: 0 0 .3em;
-      }
-      header h1 a {
-        color: inherit;
-        text-decoration: none;
-      }
-      header h1 small {
-        font-size: .4em;
-        font-weight: normal;
-        color: #828282;
-      }
-      header p {
-        margin: 0;
-        padding: 0;
-      }
-      header span {
-        color: #828282;
-      }
-      img {
-        max-width: 400px;
-        max-height: 400px;
-        width: 100%;
-      }
-      @media only screen and (max-width: 750px) {
-        #c {
-          width: 100%;
-        }
-      }
-    </style>
-    <body>
-      <div id="c">
-        <header>
-          <h1><a href="https://${escapeHtml(encodedUsername)}.at.hn">${escapeHtml(decodedUsername)}<span>.at.hn</span> ${decodedUsername !== encodedUsername ? `<small>[://${escapeHtml(encodedUsername)}.at.hn]</small>` : ''}</a> </h1>
-          <p>
-            <small>
-              <span>karma:</span> ${escapeHtml(fields.karma)}
-            </small>
-            |
-            <small>
-              <span><a href="https://news.ycombinator.com/user?id=${encodeURIComponent(decodedUsername)}">profile</a></span>
-            </small>
-            |
-            <small>
-              <span><a href="https://news.ycombinator.com/submitted?id=${encodeURIComponent(decodedUsername)}">submissions</a></span>
-            </small>
-            |
-            <small>
-              <span><a href="https://news.ycombinator.com/threads?id=${encodeURIComponent(decodedUsername)}">comments</a></span>
-            </small>
-          </p>
-        </header>
-        <div>${bioHtml}</div>
-        <footer>
-          <center><small><a href="https://at.hn/">at.hn info</a></small></center>
-        </footer>
-      </div>
-    </body>
-    </html>
-`;
+export default ({ encodedUsername, decodedUsername, fields, bioHtml, checkedAt }) => {
+  const hnProfile = `https://news.ycombinator.com/user?id=${encodeURIComponent(decodedUsername)}`;
+  const refreshUrl = e(profileUrl(encodedUsername, true));
+  const checked = checkedAt ? new Date(checkedAt).toISOString() : null;
+  return page({ title: `${decodedUsername}.at.hn`, content: `
+    <header>
+      <h1><a href="${e(profileUrl(encodedUsername))}">${e(decodedUsername)}<span class="muted">.at.hn</span></a></h1>
+      ${decodedUsername !== encodedUsername ? `<p class="meta">Address: ${e(encodedUsername)}.at.hn</p>` : ''}
+      <nav class="meta" aria-label="On Hacker News">
+        <span>karma: ${e(fields.karma)}</span>
+        <a href="${hnProfile}">HN profile</a>
+        <a href="https://news.ycombinator.com/submitted?id=${encodeURIComponent(decodedUsername)}">submissions</a>
+        <a href="https://news.ycombinator.com/threads?id=${encodeURIComponent(decodedUsername)}">comments</a>
+      </nav>
+    </header>
+    <div class="bio">${bioHtml}</div>
+    <footer>
+      ${checked ? `<p>Last checked: <time datetime="${checked}">${checked.slice(0, 19).replace('T', ' ')} UTC</time>.</p>` : ''}
+      <nav aria-label="Manage this page"><a href="${refreshUrl}">Refresh from HN</a>
+        <a href="${hnProfile}">Edit bio on HN</a></nav>
+      <p>Changes on HN can take a few minutes to reach its profile index.
+        Cached pages expire after three hours; the next visit checks again.</p>
+      <details><summary>Remove this page</summary>
+        <p>Remove every occurrence of <code>${e(encodedUsername)}.at.hn</code>${decodedUsername !== encodedUsername ? ` and <code>${e(decodedUsername)}.at.hn</code>` : ''}
+          from your HN bio and save it. Then <a href="${refreshUrl}">refresh from HN</a>.</p>
+        <p>Once the edit reaches HN's profile index, a refresh removes the cached page.
+          If your page still appears, wait a few minutes and try again.</p>
+      </details>
+      <p><a href="${homeUrl()}">About at.hn</a> · <a href="https://github.com/padolsey/at.hn">Source code</a></p>
+    </footer>` });
+};
