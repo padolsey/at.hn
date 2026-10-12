@@ -11,6 +11,7 @@ import { createClientIpKey } from './client-ip.mjs';
 import { encodeUsername, decodeUsername } from './username.mjs';
 import { homePage, setupPage, profileStatusPage } from './setup.mjs';
 import { profileUrl } from './page.mjs';
+import { previewHost } from './preview.mjs';
 
 const PROFILES_DIR = path.join(process.cwd(), 'profiles');
 const KARMA_MIN = 5;
@@ -81,6 +82,7 @@ app.use((req, res, next) => {
     'Referrer-Policy': 'no-referrer'
   });
   if (process.env.NODE_ENV === 'production') res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  if (previewHost) res.set('X-Robots-Tag', 'noindex, nofollow');
   next();
 });
 app.get('/healthz', (req, res) => {
@@ -102,7 +104,7 @@ const clientIpKey = createClientIpKey({ source: clientIpSource, trustPeer: app.g
 app.use((req, res, next) => {
   const host = (req.headers.host || '').split(':')[0].toLowerCase();
   const m = host.match(/^([^.]+)\.at\.hn$/); // single-label subdomain only
-  req.profileHost = Boolean(m && m[1] !== 'www');
+  req.profileHost = Boolean(m && m[1] !== 'www' && host !== previewHost);
   if (req.profileHost && !/\.(?:html|css|js|png|jpg|jpeg|gif|ico|txt|svg|webp)$/i.test(req.path)) {
     const qs = req.url.includes('?') ? '&' + req.url.split('?')[1] : '';
     req.url = `/user?user=${encodeURIComponent(m[1])}${qs}`;

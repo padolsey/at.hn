@@ -1,8 +1,9 @@
 import he from 'he';
+import { previewHost } from './preview.mjs';
 
 export const escapeHtml = value => he.encode(String(value), { useNamedReferences: true });
-export const homeUrl = () => process.env.NODE_ENV === 'development' ? '/' : 'https://at.hn/';
-export const profileUrl = (username, refresh = false) => process.env.NODE_ENV === 'development'
+export const homeUrl = () => previewHost || process.env.NODE_ENV === 'development' ? '/' : 'https://at.hn/';
+export const profileUrl = (username, refresh = false) => previewHost || process.env.NODE_ENV === 'development'
   ? `/user?user=${encodeURIComponent(username)}${refresh ? '&refresh' : ''}`
   : `https://${username}.at.hn${refresh ? '/?refresh' : ''}`;
 
@@ -53,6 +54,6 @@ export default function page({ title, content }) {
     @media (max-width: 480px) { body { padding: 0; } h1 { font-size: 1.5rem; } }
   </style>
 </head>
-<body><main id="c">${content}</main></body>
+<body><main id="c">${previewHost ? '<p class="meta">Staging preview</p>' : ''}${content}</main></body>
 </html>`;
 }

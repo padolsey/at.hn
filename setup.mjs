@@ -21,7 +21,7 @@ export function homePage() {
     <p>Give your bio a public page with formatted text, links and images.
       You keep editing it on HN. No extra account is needed.</p>
     ${usernameForm()}
-    <p><a href="https://padolsey.at.hn">See an example</a></p>
+    <p><a href="${e(profileUrl('padolsey'))}">See an example</a></p>
     <h2>How it works</h2>
     <ol><li>Get your address and add it to your HN bio to opt in.</li>
       <li>Check your profile here to publish the page. Accounts need at least 5 karma.</li>

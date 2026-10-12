@@ -67,6 +67,12 @@ deployment checks. Despite its initial rollout name, this is a fixed hostname:
 keep its Cloudflare CNAME/TXT records and Railway domain registration between
 deployments. Do not create a new hostname or require DNS edits for each rollout.
 Keep staging fixtures and instrumentation out of the production launcher.
+For an interactive preview, set `PREVIEW_HOST=rollout-6f6c1de8.at.hn` in staging
+and use the normal `node start.mjs` command. The configured host serves the
+homepage, profile links and redirects use `/user?user=...` on the preview, and
+responses are marked `noindex, nofollow`. Opt-in text still uses the real at.hn
+address. Leave `PREVIEW_HOST` unset in production. The preview uses the real HN
+index; editing an HN bio still changes that public profile.
 Stop disposable test clients and idle staging deployments after verification;
 retain the environment, service instance and domain so the next check can use
 the same route.

@@ -126,3 +126,31 @@ test('development setup, refresh redirects and removal links stay on the configu
   assert.match(doc.querySelector('details').textContent, /Rally_driver.at.hn/);
   assert.match(doc.querySelector('details').textContent, /r0x52ally0x5fdriver.at.hn/);
 });
+
+test('the configured staging host keeps the complete flow in preview with production policies', async t => {
+  const host = 'rollout-6f6c1de8.at.hn';
+  const app = await startApp(t, { env: { PREVIEW_HOST: host } });
+  const request = url => app.request(url, { Host: host });
+  const home = await request('/');
+  assert.equal(home.status, 200);
+  assert.match(home.body, /Staging preview/);
+  assert.equal(home.headers['x-robots-tag'], 'noindex, nofollow');
+  assert.ok(home.headers['strict-transport-security']);
+  assert.equal(document(t, home).querySelector('a').getAttribute('href'), '/user?user=padolsey');
+  const setup = await request('/setup?username=Rally_driver');
+  const doc = document(t, setup);
+  assert.equal(doc.querySelector('#address').value, 'r0x52ally0x5fdriver.at.hn');
+  const ready = await request(doc.querySelector('a.button').getAttribute('href'));
+  assert.equal(ready.status, 303);
+  assert.equal(ready.headers.location, '/user?user=r0x52ally0x5fdriver');
+  const profile = await request(ready.headers.location);
+  assert.equal(profile.status, 200);
+  assert.match(profile.headers['content-security-policy'], /form-action 'none'/);
+  const refresh = document(t, profile).querySelector('nav[aria-label="Manage this page"] a').getAttribute('href');
+  assert.equal(refresh, '/user?user=r0x52ally0x5fdriver&refresh');
+  assert.equal((await request(refresh)).headers.location, ready.headers.location);
+  const ordinary = await app.request('/', { Host: 'another.at.hn' });
+  assert.equal(ordinary.status, 200);
+  assert.equal(document(t, ordinary).querySelector('form'), null);
+  assert.equal(app.events.find(event => event.type === 'fetch').username, 'Rally_driver');
+});
