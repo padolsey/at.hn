@@ -77,6 +77,62 @@ Stop disposable test clients and idle staging deployments after verification;
 retain the environment, service instance and domain so the next check can use
 the same route.
 
+### Staging preview procedure
+
+Use the task's existing worktree and reviewed commit. Hold the workspace
+integration lock through the final head/CI checks, staging changes and live
+verification. A request to see staging authorizes this preview, not a production
+merge or deployment. Leave a requested preview running for the user to inspect.
+
+1. Link the task directory explicitly to project
+   `49cd741a-5fa8-443d-933b-597e564c1079`, environment
+   `6f6c1de8-dea8-488f-81af-b407d1275da1` (`staging`), service
+   `d01e22c5-ac3a-4068-9a34-51acf6798752` (`athn`), then verify `railway status`.
+   Record the production deployment ID so it can be checked unchanged afterward.
+2. Inspect staging's actual start command and settings. Earlier load tests used
+   `node --import ./staging-probe.mjs start.mjs`; that probe is not part of the app.
+   Interactive previews use `node start.mjs`, `/healthz`, a 30-second healthcheck
+   timeout, a 15-second draining interval, and the existing verified proxy settings.
+   Set `PREVIEW_HOST=rollout-6f6c1de8.at.hn` only in staging, with deploys skipped
+   until the reviewed upload is ready. Keep the existing domain/DNS registration.
+3. For settings changes absent from the CLI, inspect the live schema with
+   `railway api describe`. Use an explicit environment-scoped
+   `environmentPatchCommit` with only the intended fields and `skipDeploys: true`.
+   Do not assume a service-level mutation is restricted to the selected environment;
+   verify staging and production settings after the change. Print only explicitly
+   selected, nonsecret settings; never dump variables or credentials.
+4. Upload a clean Git archive, not a working directory containing local tooling.
+   Put the archive directly under the task worktree, outside ignored ancestors:
+
+   ```sh
+   set -euo pipefail
+   preview_sha=$(git rev-parse HEAD)
+   preview_upload=$(mktemp -d "$PWD/staging-upload.XXXXXX")
+   git archive "$preview_sha" | tar -x -C "$preview_upload"
+   test -f "$preview_upload/package.json"
+   railway up "$preview_upload" --path-as-root --detach \
+     --project 49cd741a-5fa8-443d-933b-597e564c1079 \
+     --environment 6f6c1de8-dea8-488f-81af-b407d1275da1 \
+     --service d01e22c5-ac3a-4068-9a34-51acf6798752 \
+     --message "Staging preview $preview_sha"
+   ```
+
+   Railway CLI 5.64.2 uploaded an empty archive when the source directory was
+   beneath `node_modules`, even with `--no-gitignore`. Railpack then reported
+   that it could not detect a language and showed only `./` as the app contents.
+   Check archive placement and build contents before changing the app's build
+   configuration. Keep the temporary upload out of commits.
+5. `railway up --detach` confirms an upload, not a healthy deployment. Record its
+   deployment ID, inspect that deployment's build/runtime logs, and wait for
+   `SUCCESS`. Check the fixed hostname with a cache-busting request and verify the
+   staging banner and `X-Robots-Tag`, not only `/healthz` (a cached response can
+   obscure an offline service). With JavaScript disabled, check setup, a real
+   opted-in example, refresh redirects, removal instructions and mobile layout.
+   Profile links must stay on staging; editing the HN bio itself is still live.
+6. Verify production's deployment ID is unchanged. Record the staging URL,
+   deployed commit and checks in the existing PR. Remove only this task's temporary
+   upload after verification; preserve useful test evidence and release the lock.
+
 ## Proxy configuration
 
 `TRUSTED_PROXY_CIDRS` is a comma-separated list of verified ingress IPs/CIDRs.
