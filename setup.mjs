@@ -52,6 +52,14 @@ export function setupPage(params) {
   if (!error && decodeUsername(encoded) !== username) {
     error = 'This username conflicts with the existing at.hn address encoding. We cannot generate an unambiguous address for it.';
   }
+  if (!error) {
+    try {
+      // DNS-shaped labels may still be invalid browser hostnames (e.g. xn--a).
+      if (new URL(`https://${encoded}.at.hn`).hostname !== `${encoded}.at.hn`) throw new Error('Different hostname');
+    } catch {
+      error = 'This username cannot be represented by a valid at.hn web address.';
+    }
+  }
   if (error) return { status: 400, html: page({ title: 'Get your at.hn address', content:
     `<h1>Get your at.hn address</h1>${usernameForm(username, error)}${footer()}` }) };
   const address = `${encoded}.at.hn`;

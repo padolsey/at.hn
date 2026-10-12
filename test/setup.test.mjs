@@ -33,6 +33,7 @@ test('setup rejects malformed, ambiguous and unrepresentable names without refle
   const app = await startApp(t);
   for (const query of ['', 'username=a&username=b', 'username=r0x52ally', 'username=a0x5fb',
     'username=' + 'A'.repeat(13), 'username=-abc', 'username=abc-', 'username=www',
+    'username=xn--a', 'username=xn--abc',
     'username=' + encodeURIComponent('"><img src=x onerror=alert(1)>')]) {
     const response = await app.request('/setup?' + query);
     assert.equal(response.status, 400, query);
@@ -41,6 +42,9 @@ test('setup rejects malformed, ambiguous and unrepresentable names without refle
     assert.equal(doc.querySelector('#username').getAttribute('aria-invalid'), 'true');
     assert.equal(doc.querySelector('#address'), null);
   }
+  const valid = await app.request('/setup?username=xn--bcher-kva');
+  assert.equal(valid.status, 200);
+  assert.equal(document(t, valid).querySelector('#address').value, 'xn--bcher-kva.at.hn');
   assert.equal(app.events.filter(event => event.type === 'fetch').length, 0);
 });
 
