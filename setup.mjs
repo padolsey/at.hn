@@ -1,5 +1,9 @@
 import page, { escapeHtml as e, homeUrl, profileUrl } from './page.mjs';
-import { encodeUsername, decodeUsername } from './username.mjs';
+import { usernameAddress } from './public/username.mjs';
+import { readFileSync } from 'node:fs';
+import { previewHost } from './preview.mjs';
+
+const homepage = readFileSync(new URL('./public/index.html', import.meta.url), 'utf8');
 
 const footer = () => `<footer><nav aria-label="About at.hn"><a href="${homeUrl()}">About at.hn</a>
   <a href="https://github.com/padolsey/at.hn">Source code</a></nav></footer>`;
@@ -16,50 +20,19 @@ function usernameForm(username = '', error = '') {
 }
 
 export function homePage() {
-  return page({ title: 'at.hn — your HN bio, with a little more room', content: `
-    <header><h1>at.hn</h1><p>Your Hacker News bio, with a little more room.</p></header>
-    <p>Give your bio a public page with formatted text, links and images.
-      You keep editing it on HN. No extra account is needed.</p>
-    ${usernameForm()}
-    <p><a href="${e(profileUrl('padolsey'))}">See an example</a></p>
-    <h2>How it works</h2>
-    <ol><li>Get your address and add it to your HN bio to opt in.</li>
-      <li>Check your profile here to publish the page. Accounts need at least 5 karma.</li>
-      <li>Edit your bio on HN whenever you like. Markdown adds formatting.</li></ol>
-    <h2>You're in control</h2>
-    <p>Only profiles that include their at.hn address are published. To leave, remove that
-      address from your HN bio and refresh your page here once HN's profile index has caught up.</p>
-    <p>Cached pages expire after three hours; the next visit checks again. A refresh checks
-      immediately, but changes on HN can take a few minutes to reach its profile index.</p>
-    <p class="meta">An independent project by <a href="https://padolsey.at.hn">James Padolsey</a>.
-      Not affiliated with Hacker News or Y Combinator.</p>${footer()}` });
+  let html = homepage
+    .replaceAll('href="https://padolsey.at.hn"', `href="${e(profileUrl('padolsey'))}"`)
+    .replace('href="https://at.hn"', `href="${e(homeUrl())}"`);
+  if (previewHost || process.env.NODE_ENV === 'development') {
+    html = html.replace('data-profile-mode="subdomain"', 'data-profile-mode="path"');
+  }
+  if (previewHost) html = html.replace('<div id="c">', '<div id="c"><p>Staging preview</p>');
+  return html;
 }
 
 export function setupPage(params) {
   const values = params.getAll('username');
-  const username = values.length === 1 ? values[0].trim() : '';
-  let error;
-  if (!/^[A-Za-z0-9_-]{1,63}$/.test(username)) {
-    error = 'Enter one HN username using letters, numbers, underscores or hyphens.';
-  }
-  const encoded = encodeUsername(username);
-  if (!error && encoded === 'www') {
-    error = 'The www.at.hn address is reserved for the homepage. This username cannot have a profile subdomain.';
-  }
-  if (!error && (encoded.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(encoded))) {
-    error = 'This username cannot be represented by an at.hn subdomain. It may be too long after encoding, or start or end with a hyphen.';
-  }
-  if (!error && decodeUsername(encoded) !== username) {
-    error = 'This username conflicts with the existing at.hn address encoding. We cannot generate an unambiguous address for it.';
-  }
-  if (!error) {
-    try {
-      // DNS-shaped labels may still be invalid browser hostnames (e.g. xn--a).
-      if (new URL(`https://${encoded}.at.hn`).hostname !== `${encoded}.at.hn`) throw new Error('Different hostname');
-    } catch {
-      error = 'This username cannot be represented by a valid at.hn web address.';
-    }
-  }
+  const { username, encoded, error } = usernameAddress(values.length === 1 ? values[0] : '');
   if (error) return { status: 400, html: page({ title: 'Get your at.hn address', content:
     `<h1>Get your at.hn address</h1>${usernameForm(username, error)}${footer()}` }) };
   const address = `${encoded}.at.hn`;

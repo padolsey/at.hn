@@ -8,7 +8,7 @@ import { renderBio } from './bio.mjs';
 import { ProfileCache } from './profile-cache.mjs';
 import { trustedProxyCidrs } from './proxy-trust.mjs';
 import { createClientIpKey } from './client-ip.mjs';
-import { encodeUsername, decodeUsername } from './username.mjs';
+import { encodeUsername, decodeUsername } from './public/username.mjs';
 import { homePage, setupPage, profileStatusPage } from './setup.mjs';
 import { profileUrl } from './page.mjs';
 import { previewHost } from './preview.mjs';
@@ -105,7 +105,7 @@ app.use((req, res, next) => {
   const host = (req.headers.host || '').split(':')[0].toLowerCase();
   const m = host.match(/^([^.]+)\.at\.hn$/); // single-label subdomain only
   req.profileHost = Boolean(m && m[1] !== 'www' && host !== previewHost);
-  if (req.profileHost && !/\.(?:html|css|js|png|jpg|jpeg|gif|ico|txt|svg|webp)$/i.test(req.path)) {
+  if (req.profileHost && !/\.(?:html|css|mjs|js|png|jpg|jpeg|gif|ico|txt|svg|webp)$/i.test(req.path)) {
     const qs = req.url.includes('?') ? '&' + req.url.split('?')[1] : '';
     req.url = `/user?user=${encodeURIComponent(m[1])}${qs}`;
   }
@@ -124,6 +124,7 @@ app.get(['/', '/index.html', '/setup'], (req, res) => {
     const result = setupPage(new URL(req.url, 'http://localhost').searchParams);
     return res.status(result.status).type('html').send(result.html);
   }
+  res.set('Content-Security-Policy', BROWSER_POLICY.replace("form-action 'none'", "form-action 'self'") + "; script-src 'self'; script-src-attr 'none'");
   res.type('html').send(homePage());
 });
 

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
+import { setupHelper } from '../public/setup-helper.mjs';
 import { startApp } from './support/app.mjs';
 
 function document(t, response) {
@@ -9,7 +10,7 @@ function document(t, response) {
   return dom.window.document;
 }
 
-test('setup generates the exact case-sensitive address without fetching or scripting', async t => {
+test('the form fallback generates the exact case-sensitive address without fetching or scripting', async t => {
   const app = await startApp(t);
   const home = await app.request('/');
   const form = document(t, home).querySelector('form');
@@ -27,6 +28,84 @@ test('setup generates the exact case-sensitive address without fetching or scrip
   assert.equal(ready.status, 303);
   assert.equal(ready.headers.location, 'https://r0x52ally0x5fdriver.at.hn');
   assert.equal(app.events.find(event => event.type === 'fetch').username, 'Rally_driver');
+});
+
+test('the homepage preserves its instructions and example while serving the browser helper', async t => {
+  const app = await startApp(t);
+  const home = await app.request('/');
+  const doc = document(t, home);
+  assert.equal(doc.querySelector('header h1').textContent, '{you?}.at.hn');
+  assert.ok(doc.querySelector('img[src="/screenshot.jpg"]'));
+  assert.match(doc.querySelector('ol').textContent, /RallyDriver/);
+  assert.match(doc.querySelector('ol').textContent, /rel=nofollow/);
+  assert.ok(doc.querySelector('a[href="https://padolsey.at.hn"]'));
+  assert.match(doc.querySelector('footer').textContent, /Made by James @padolsey/);
+  assert.match(home.headers['content-security-policy'], /script-src 'self'; script-src-attr 'none'/);
+  for (const asset of ['/setup-helper.mjs', '/username.mjs']) {
+    const response = await app.request(asset);
+    assert.equal(response.status, 200);
+    assert.match(response.headers['content-type'], /javascript/);
+  }
+  const fallback = await app.request('/setup?username=fixture');
+  assert.doesNotMatch(fallback.headers['content-security-policy'], /script-src 'self'/);
+});
+
+test('the browser helper updates in place, copies the exact address and rejects ambiguous names', async t => {
+  const app = await startApp(t);
+  const doc = document(t, await app.request('/'));
+  let copied;
+  setupHelper(doc, { writeText: async text => { copied = text; } });
+  const input = doc.querySelector('#setup-username');
+  const change = value => {
+    input.value = value;
+    input.dispatchEvent(new doc.defaultView.Event('input'));
+  };
+  assert.equal(doc.querySelector('#setup-result').hidden, true);
+  assert.equal(doc.querySelector('#setup-submit').hidden, true);
+  change(' Rally_driver ');
+  assert.equal(doc.querySelector('#setup-result').hidden, false);
+  assert.equal(doc.querySelector('#generated-address').value, 'r0x52ally0x5fdriver.at.hn');
+  assert.equal(doc.querySelector('#profile-address').href, 'https://r0x52ally0x5fdriver.at.hn/');
+  assert.equal(doc.querySelector('#edit-profile').href, 'https://news.ycombinator.com/user?id=Rally_driver');
+  assert.equal(doc.querySelector('#check-profile').getAttribute('href'), '/user?user=r0x52ally0x5fdriver&refresh');
+  const submit = new doc.defaultView.Event('submit', { cancelable: true });
+  doc.querySelector('form').dispatchEvent(submit);
+  assert.equal(submit.defaultPrevented, true);
+  doc.querySelector('#copy-address').click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(copied, 'r0x52ally0x5fdriver.at.hn');
+  assert.match(doc.querySelector('#copy-status').textContent, /Copied/);
+  for (const invalid of ['r0x52ally', 'www', 'xn--a', 'A'.repeat(13), '<img src=x>']) {
+    change(invalid);
+    assert.equal(doc.querySelector('#setup-result').hidden, true, invalid);
+    assert.equal(doc.querySelector('#generated-address').value, '');
+    assert.equal(input.getAttribute('aria-invalid'), 'true');
+    assert.equal(doc.querySelector('#setup-error').hidden, false);
+    assert.equal(doc.querySelector('#setup-error img'), null);
+  }
+  change('');
+  assert.equal(doc.querySelector('#setup-error').hidden, true);
+  change('rally_driver');
+  assert.equal(doc.querySelector('#generated-address').value, 'rally0x5fdriver.at.hn');
+  assert.equal(input.getAttribute('aria-invalid'), 'false');
+  assert.equal(app.events.filter(event => event.type === 'fetch').length, 0);
+});
+
+test('preview browser links stay on staging and failed copying selects the address', async t => {
+  const app = await startApp(t, { env: { PREVIEW_HOST: 'preview.at.hn' } });
+  const doc = document(t, await app.request('/', { Host: 'preview.at.hn' }));
+  setupHelper(doc, { writeText: async () => { throw new Error('Permission denied'); } });
+  const input = doc.querySelector('#setup-username');
+  input.value = 'Rally_driver';
+  input.dispatchEvent(new doc.defaultView.Event('input'));
+  assert.equal(doc.querySelector('#profile-address').getAttribute('href'), '/user?user=r0x52ally0x5fdriver');
+  doc.querySelector('#copy-address').click();
+  await new Promise(resolve => setImmediate(resolve));
+  const address = doc.querySelector('#generated-address');
+  assert.equal(doc.activeElement, address);
+  assert.equal(address.selectionStart, 0);
+  assert.equal(address.selectionEnd, address.value.length);
+  assert.match(doc.querySelector('#copy-status').textContent, /Copy it with your keyboard or touch menu/);
 });
 
 test('setup rejects malformed, ambiguous and unrepresentable names without reflecting HTML', async t => {
@@ -61,6 +140,7 @@ test('forms are allowed only on application setup pages; all dynamic pages avoid
     ['/index.html', { Host: 'fixture.at.hn' }]]) {
     const response = await app.request(url, headers);
     assert.match(response.headers['content-security-policy'], /form-action 'none'/);
+    assert.doesNotMatch(response.headers['content-security-policy'], /script-src 'self'/);
     assert.equal(document(t, response).querySelector('form'), null);
     if (url !== '/index.html') assert.equal(response.headers['cache-control'], 'no-store');
   }
@@ -136,7 +216,7 @@ test('the configured staging host keeps the complete flow in preview with produc
   assert.match(home.body, /Staging preview/);
   assert.equal(home.headers['x-robots-tag'], 'noindex, nofollow');
   assert.ok(home.headers['strict-transport-security']);
-  assert.equal(document(t, home).querySelector('a').getAttribute('href'), '/user?user=padolsey');
+  assert.ok(document(t, home).querySelector('a[href="/user?user=padolsey"]'));
   const setup = await request('/setup?username=Rally_driver');
   const doc = document(t, setup);
   assert.equal(doc.querySelector('#address').value, 'r0x52ally0x5fdriver.at.hn');

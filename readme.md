@@ -4,8 +4,10 @@ See [at.hn](https://at.hn);
 
 Run `npm ci` and `npm run dev`, then visit `http://localhost:4008` (or the
 configured `PORT`). Development binds to loopback. Use the homepage setup helper
-to generate an address from an exact, case-sensitive HN username. The helper and
-profile pages work without JavaScript. Production routes `username.at.hn` to the
+to generate an address from an exact, case-sensitive HN username. The helper
+updates and copies the address client-side, with a plain form fallback when
+JavaScript is unavailable. Profile pages work without JavaScript.
+Production routes `username.at.hn` to the
 profile directly; development also supports `/user?user=___`.
 
 ## Setup, updates and removal
@@ -13,7 +15,8 @@ profile directly; development also supports `/user?user=___`.
 The setup helper accepts a raw HN username and generates the existing encoded
 address automatically. It rejects names that cannot round-trip through the
 legacy encoding or fit a DNS label, rather than linking to a different account.
-It does not contact HN until the user follows “Check my profile”. The minimum
+Typing a username makes no network requests. It does not contact HN until the
+user follows a profile or check link. The minimum
 karma remains 5, and opting in still requires editing the HN bio.
 
 Profiles show when the upstream index was last checked, with links to refresh,
@@ -43,9 +46,11 @@ It is reserved on apex and user hosts. Monitor profile error/timeout rates
 separately: process readiness is not a check of Algolia availability.
 SIGTERM drains HTTP requests for up to
 ten seconds. Development binds loopback by default; `HOST` can select a bind
-address. Browser policies prohibit scripts, base-tag changes and framing; inline styles
-and HTTP/HTTPS images remain permitted. Only the homepage and setup helper allow
-same-origin forms. Profiles and profile errors continue to prohibit forms.
+address. Browser policies prohibit base-tag changes and framing; inline styles
+and HTTP/HTTPS images remain permitted. Only the homepage allows same-origin
+external scripts for the input helper; inline scripts remain prohibited. Only
+the homepage and setup fallback allow same-origin forms. Profiles and profile
+errors continue to prohibit scripts and forms.
 
 Production rollout requires Railway's Custom Start Command to be `node start.mjs`,
 Healthcheck Path `/healthz`, and Healthcheck Timeout 30 seconds. These service
@@ -126,12 +131,22 @@ merge or deployment. Leave a requested preview running for the user to inspect.
    deployment ID, inspect that deployment's build/runtime logs, and wait for
    `SUCCESS`. Check the fixed hostname with a cache-busting request and verify the
    staging banner and `X-Robots-Tag`, not only `/healthz` (a cached response can
-   obscure an offline service). With JavaScript disabled, check setup, a real
-   opted-in example, refresh redirects, removal instructions and mobile layout.
+   obscure an offline service). Check the client-side helper, copying and mobile
+   layout with JavaScript enabled. Also check the plain form fallback with
+   JavaScript disabled, a real opted-in example, refresh redirects and removal instructions.
    Profile links must stay on staging; editing the HN bio itself is still live.
 6. Verify production's deployment ID is unchanged. Record the staging URL,
    deployed commit and checks in the existing PR. Remove only this task's temporary
    upload after verification; preserve useful test evidence and release the lock.
+
+## UI changes
+
+Preserve the existing homepage's content, examples, screenshot and visual layout
+when adding functionality. Compare the live page and repository source before
+editing, and review the result in a browser. An input helper is an addition to
+the page, not authorization to replace it. Keep profile readability styling
+separate from homepage styling. Local calculations belong in the browser, with
+a working HTML form fallback.
 
 ## Proxy configuration
 
